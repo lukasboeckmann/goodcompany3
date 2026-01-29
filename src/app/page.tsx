@@ -1,9 +1,51 @@
 'use client';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, useMotionValue, animate, PanInfo, AnimatePresence, useTransform, useVelocity, useSpring } from 'framer-motion';
+import { motion, useMotionValue, animate, PanInfo, AnimatePresence, useTransform, useVelocity, useSpring, MotionValue } from 'framer-motion';
 
 // 1. SOULFUL PHYSICS (MAX SPEED - CRITICAL DAMPING)
 const PHYSICS = { type: "spring" as const, stiffness: 700, damping: 60, mass: 1, restDelta: 0.5 };
+
+// WRAPPED CELL COMPONENT
+const WrappedCell = ({ x, y, cx, cy, size, children }: { x: MotionValue<number>, y: MotionValue<number>, cx: number, cy: number, size: { w: number, h: number }, children: React.ReactNode }) => {
+  const periodW = size.w * 3;
+  const periodH = size.h * 3;
+
+  const xOffset = useTransform(x, (v) => {
+    if (!periodW) return 0;
+    const base = cx * size.w;
+    const total = base + v;
+    return (((total + 1.5 * size.w) % periodW + periodW) % periodW - 1.5 * size.w) - v;
+  });
+
+  const yOffset = useTransform(y, (v) => {
+    if (!periodH) return 0;
+    const base = cy * size.h;
+    const total = base + v;
+    return (((total + 1.5 * size.h) % periodH + periodH) % periodH - 1.5 * size.h) - v;
+  });
+
+  return (
+    <motion.div
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: size.w,
+        height: size.h,
+        x: xOffset,
+        y: yOffset,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none'
+      }}
+    >
+      <div style={{ width: '100%', height: '100%', pointerEvents: 'auto' }}>
+        {children}
+      </div>
+    </motion.div>
+  );
+};
 
 const ARTISTS = [
   {
@@ -424,666 +466,457 @@ export default function Home() {
   }, []);
 
   // 2. DELAYED WARP MONITOR
-  useEffect(() => {
-    let rafId: number;
-    const monitor = () => {
-      const s = sizeRef.current;
-      if (s.w === 0) {
-        rafId = requestAnimationFrame(monitor);
-        return;
-      }
+  // (REMOVED: Infinite Wrapping is now handled by WrappedCell via useTransform)
+  // We keep the Resize listener above, but remove the manual "Jump" logic.
 
-      // Skip warp if animating (but NOT if dragging - we want seamless warp DURING infinite drag)
-      if (isWarping.current || isAnimating.current) {
-        rafId = requestAnimationFrame(monitor);
-        return;
-      }
 
-      const lx = x.get();
-      const ly = y.get();
-
-      // CAPTURE VELOCITY (For Momentum Handover)
-      const vx = x.getVelocity();
-      const vy = y.getVelocity();
-
-      const threshX = s.w * 1.5;
-      const threshY = s.h * 1.5;
-
-      let warped = false;
-      let warpX = 0; // Track shift for inertia correction
-      let warpY = 0;
-
-      // X Warp Logic
-      if (lx > threshX) {
-        isWarping.current = true;
-        const shift = s.w * 3;
-        x.jump(lx - shift);
-        currentPos.current.x -= 3;
-        warped = true;
-        warpX = -shift;
-      } else if (lx < -threshX) {
-        isWarping.current = true;
-        const shift = s.w * 3;
-        x.jump(lx + shift);
-        currentPos.current.x += 3;
-        warped = true;
-        warpX = shift;
-      }
-
-      // Y Warp Logic
-      if (ly > threshY) {
-        isWarping.current = true;
-        const shift = s.h * 3;
-        y.jump(ly - shift);
-        currentPos.current.y -= 3;
-        warped = true;
-        warpY = -shift;
-      } else if (ly < -threshY) {
-        isWarping.current = true;
-        const shift = s.h * 3;
-        y.jump(ly + shift);
-        currentPos.current.y += 3;
-        warped = true;
-        warpY = shift;
-      }
-
-      if (warped) {
-        // MOMENTUM HANDOVER: If we act while gliding, we must restore the physics engine.
-        // Otherwise, x.jump() acts like a brake.
-        if (isZoomedOut && !isDragging.current) {
-          if (Math.abs(vx) > 10) {
-            animate(x, x.get() + vx * 2, { type: "inertia", velocity: vx, power: 2, timeConstant: 1000 });
-          }
-          if (Math.abs(vy) > 10) {
-            animate(y, y.get() + vy * 2, { type: "inertia", velocity: vy, power: 2, timeConstant: 1000 });
-          }
-        }
-
-        isWarping.current = false;
-        setTick(t => t + 1);
-      }
-
-      rafId = requestAnimationFrame(monitor);
-    };
-
-    rafId = requestAnimationFrame(monitor);
-    return () => cancelAnimationFrame(rafId);
-  }, [x, y]);
-
+  // 3. HANDLERS
   // 3. HANDLERS
   const handleDragEnd = (e: any, info: PanInfo) => {
     isDragging.current = false;
-    const s = sizeRef.current;
-    if (s.w === 0) return;
-
-    // IF ZOOMED OUT: FREE DRAG (No Snap)
-    if (isZoomedOut) {
-      // Just update momentum/glide naturally.
-      // The Warp Monitor (useEffect above) will still run and handle infinite looping if they glide too far.
-      return;
-    }
-
-    // IF ZOOMED IN: SNAP LOGIC (Currently Disabled by drag={isZoomedOut}, but kept for future safety)
-    isWarping.current = false;
-
-    const isX = Math.abs(info.offset.x) > Math.abs(info.offset.y);
-    const vThresh = 500;
-    const dThresh = s.w * 0.15;
-
-    // Calculate nearest LOCAL integer snap
-    const currentRelX = -Math.round(x.get() / s.w);
-    const currentRelY = -Math.round(y.get() / s.h);
-
-    let modifiersX = 0;
-    let modifiersY = 0;
-
-    if (isX) {
-      if (info.offset.x < -dThresh || info.velocity.x < -vThresh) modifiersX = 1;
-      else if (info.offset.x > dThresh || info.velocity.x > vThresh) modifiersX = -1;
-    } else {
-      if (info.offset.y < -dThresh || info.velocity.y < -vThresh) modifiersY = 1;
-      else if (info.offset.y > dThresh || info.velocity.y > vThresh) modifiersY = -1;
-    }
-
-    const finalX = (currentRelX + modifiersX) * -s.w;
-    const finalY = (currentRelY + modifiersY) * -s.h;
-
-    // START ANIMATION
-    isAnimating.current = true;
-
-    // Detect Target Cell for Context-Aware Physics
-    const targetLogX = currentPos.current.x + modifiersX;
-    const targetLogY = currentPos.current.y + modifiersY;
-
-    // Normalize to 0-2 index
-    const tCx = ((targetLogX % 3) + 3) % 3;
-    const tCy = ((targetLogY % 3) + 3) % 3;
-
-    // "Heavy" Gallery Feel (0,1) vs Standard Speed
-    const isGallery = tCx === 0 && tCy === 1;
-    const activePhysics = isGallery
-      ? { type: "spring", stiffness: 120, damping: 30, mass: 2, restDelta: 0.5 } // Heavy
-      : PHYSICS; // Standard Max Speed
-
-    // Velocity Transfer
-    const tx = { ...activePhysics, velocity: info.velocity.x } as any;
-    const ty = { ...PHYSICS, velocity: info.velocity.y } as any;
-
-    Promise.all([
-      animate(x, finalX, tx),
-      animate(y, finalY, ty)
-    ]).then(() => {
-      // PROACTIVE SILENT RESET
-      // Optimized for speed: Reset as soon as animation settles
-
-      // Interrupt Guard: If user started dragging again, abort reset and release control
-      if (isDragging.current) {
-        isAnimating.current = false;
-        return;
-      }
-
-      const s2 = sizeRef.current;
-      if (s2.w === 0) { isAnimating.current = false; return; }
-
-      const shiftX = Math.round(x.get() / s2.w);
-      const shiftY = Math.round(y.get() / s2.h);
-
-      if (shiftX !== 0 || shiftY !== 0) {
-        currentPos.current.x -= shiftX;
-        currentPos.current.y -= shiftY;
-
-        // Physical Reset
-        x.jump(x.get() - shiftX * s2.w);
-        y.jump(y.get() - shiftY * s2.h);
-
-        // Force Render
-        setTick(t => t + 1);
-      }
-      isAnimating.current = false;
-    });
+    // INFINITE MOMENTUM: No Snapping.
+    // We let Framer Motion's dragMomentum take over.
+    // The WrappedCell logic handles the visuals.
   };
 
   const cells = React.useMemo(() => {
     if (size.w === 0) return [];
 
     const c = [];
-    const cx = currentPos.current.x;
-    const cy = currentPos.current.y;
+    const cx = 0; // Fixed center for calculation logic if needed, but we loop 0..2
+    const cy = 0;
 
-    for (let i = -3; i <= 3; i++) {
-      for (let j = -3; j <= 3; j++) {
-        const globalX = cx + i;
-        const globalY = cy + j;
-        const contentX = ((globalX % 3) + 3) % 3;
-        const contentY = ((globalY % 3) + 3) % 3;
+    // Loop 0..2 for 3x3 Grid
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        // CONTENT INDICES
+        const contentX = i;
+        const contentY = j;
 
-        // GRID COPY INDEX: Map relative (i,j) to a 0-48 index (for a 7x7 buffer)
-        // i and j range from -3 to 3. (i+3) is 0-6.
-        const gridCopyIndex = (i + 3) * 7 + (j + 3);
-        const cellIndex = contentY * 3 + contentX;
-        const instanceId = `${gridCopyIndex}-${cellIndex}`;
+        // Instance ID (Simplified for Wrapped Logic)
+        const instanceId = `${i}-${j}`;
 
         c.push(
-          <div
-            key={`${globalX}-${globalY}`}
-            style={{
-              position: 'absolute',
-              left: i * size.w + (typeof window !== 'undefined' ? window.innerWidth * 0.05 : 0),
-              top: j * size.h,
-              width: size.w,
-              height: size.h,
-              display: 'flex',
-              // Layout: Always Center for visual balance, internal content decides positioning
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: (contentX === 2 && contentY === 1 && size.w < 768) ? '0' : '40px',
-              pointerEvents: isZoomedOut ? 'auto' : 'none', // Allow clicks on wrapper when zoomed out
-              willChange: 'transform',
-              border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
-              borderRadius: isZoomedOut ? '10px' : '0px',
-              transition: 'border 0.3s ease, border-radius 0.3s ease',
-              cursor: isZoomedOut ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
-            }}
-            onDoubleClick={(e) => {
-              if (isZoomedOut) {
-                e.preventDefault();
-                e.stopPropagation();
-                // SNAP-IN MOVE (Same logic as Click-to-Zoom)
-                setIsZoomedOut(false);
-                isAnimating.current = true;
-
-                const targetX = -i * size.w;
-                const targetY = -j * size.h;
-
-                Promise.all([
-                  animate(x, targetX, { ...PHYSICS }),
-                  animate(y, targetY, { ...PHYSICS })
-                ]).then(() => {
-                  currentPos.current.x += i;
-                  currentPos.current.y += j;
-                  x.jump(0);
-                  y.jump(0);
-                  setTick(t => t + 1);
-                  isAnimating.current = false;
-                });
-              }
-            }}
-            onClickCapture={(e) => {
-              if (isZoomedOut) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                // CLICK-TO-ZOOM-IN LOGIC
-                // 1. Zoom In
-                setIsZoomedOut(false);
-
-                // 2. Animate Camera to Center this Cell
-                // Target shift is -i * size.w, -j * size.h (relative to current center)
-                // Note: We are animating x and y motion values.
-
-                isAnimating.current = true;
-                const targetX = -i * size.w;
-                const targetY = -j * size.h;
-
-                Promise.all([
-                  animate(x, targetX, { ...PHYSICS }),
-                  animate(y, targetY, { ...PHYSICS })
-                ]).then(() => {
-                  // 3. Commit New Center
-                  currentPos.current.x += i;
-                  currentPos.current.y += j;
-
-                  // 4. Physical Reset (Teleport)
-                  x.jump(0);
-                  y.jump(0);
-
-                  // 5. Render
-                  setTick(t => t + 1);
-                  isAnimating.current = false;
-                });
-              }
-            }}
+          <WrappedCell
+            key={`${i}-${j}`}
+            x={x} y={y}
+            cx={i} cy={j}
+            size={size}
           >
-            {contentX === 0 && contentY === 0 ? (
-              // 1. CENTER: HEADLINE
-              <div style={{ textAlign: 'center', userSelect: 'none' }}>
-                <h1 style={{ fontSize: '12vw', fontWeight: 800, textTransform: 'uppercase', lineHeight: 0.8, letterSpacing: '-0.05em', color: '#ececec' }}>Good<br />Company.</h1>
-              </div>
-            ) : contentX === 1 && contentY === 0 ? (
-              // 2. RIGHT: ROSTER (Asymmetric list)
-              <div style={{ textAlign: 'left', userSelect: 'none', pointerEvents: 'auto', width: '100%', paddingLeft: '15%' }}>
-                <p style={{ color: '#808080', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', marginBottom: '4vh', textTransform: 'uppercase' }}>[ Roster_01.idx ]</p>
-                <ul style={{ listStyle: 'none', padding: 0 }}>
-                  {ARTISTS.map(artist => (
-                    <li key={artist.id} style={{ marginBottom: '1vh' }}>
-                      <button
-                        onMouseEnter={() => setHoveredArtistId(artist.id)}
-                        onMouseLeave={() => setHoveredArtistId(null)}
-                        onClick={(e) => { e.stopPropagation(); setActiveArtist(artist); }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#ececec',
-                          fontSize: '3vw',
-                          fontWeight: 400,
-                          fontFamily: 'monospace',
-                          cursor: 'pointer',
-                          textTransform: 'uppercase',
-                          opacity: hoveredArtistId ? (hoveredArtistId === artist.id ? 1 : 0.2) : 0.7,
-                          transition: 'opacity 0.4s ease',
-                          letterSpacing: '-0.03em'
-                        }}
-                      >
-                        {artist.name}
-                        {hoveredArtistId === artist.id && <span style={{ marginLeft: '10px', fontSize: '10px', verticalAlign: 'middle', opacity: 0.5 }}>←</span>}
-                      </button>
-                    </li>
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: (contentX === 2 && contentY === 1 && size.w < 768) ? '0' : '40px',
+                pointerEvents: isZoomedOut ? 'auto' : 'none',
+                willChange: 'transform',
+                border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                borderRadius: isZoomedOut ? '10px' : '0px',
+                transition: 'border 0.3s ease, border-radius 0.3s ease',
+                cursor: isZoomedOut ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
+              }}
+              onDoubleClick={(e) => {
+                if (isZoomedOut) {
+                  // Quick fix: Double click to center THIS cell? 
+                  // With continuous drag, "centering" means animating 'x' so this cell is at simple coords.
+                  // For now, simpler to just enter zoom.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsZoomedOut(false);
+                }
+              }}
+              onClickCapture={(e) => {
+                if (isZoomedOut) {
+                  e.preventDefault(); e.stopPropagation();
+                  setIsZoomedOut(false);
+                  // Optional: Animate camera to center this cell
+                }
+              }}
+            >
+              {contentX === 0 && contentY === 0 ? (
+                // 1. CENTER: HEADLINE
+                <div style={{ textAlign: 'center', userSelect: 'none' }}>
+                  <h1 style={{ fontSize: '12vw', fontWeight: 800, textTransform: 'uppercase', lineHeight: 0.8, letterSpacing: '-0.05em', color: '#ececec' }}>Good<br />Company.</h1>
+                </div>
+              ) : contentX === 1 && contentY === 0 ? (
+                // 2. RIGHT: ROSTER (Asymmetric list)
+                <div style={{ textAlign: 'left', userSelect: 'none', pointerEvents: 'auto', width: '100%', paddingLeft: '15%' }}>
+                  <p style={{ color: '#808080', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', marginBottom: '4vh', textTransform: 'uppercase' }}>[ Roster_01.idx ]</p>
+                  <ul style={{ listStyle: 'none', padding: 0 }}>
+                    {ARTISTS.map(artist => (
+                      <li key={artist.id} style={{ marginBottom: '1vh' }}>
+                        <button
+                          onMouseEnter={() => setHoveredArtistId(artist.id)}
+                          onMouseLeave={() => setHoveredArtistId(null)}
+                          onClick={(e) => { e.stopPropagation(); setActiveArtist(artist); }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#ececec',
+                            fontSize: '3vw',
+                            fontWeight: 400,
+                            fontFamily: 'monospace',
+                            cursor: 'pointer',
+                            textTransform: 'uppercase',
+                            opacity: hoveredArtistId ? (hoveredArtistId === artist.id ? 1 : 0.2) : 0.7,
+                            transition: 'opacity 0.4s ease',
+                            letterSpacing: '-0.03em'
+                          }}
+                        >
+                          {artist.name}
+                          {hoveredArtistId === artist.id && <span style={{ marginLeft: '10px', fontSize: '10px', verticalAlign: 'middle', opacity: 0.5 }}>←</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : contentX === 2 && contentY === 0 ? (
+                // (2,0) THE VAULT
+                <VaultCell />
+              ) : contentX === 0 && contentY === 1 ? (
+
+
+                // (0,1) LIVING GALLERY (Asymmetric Living Layout)
+                <GalleryCell x={x} y={y} size={size} isZoomedOut={isZoomedOut} />
+
+              ) : contentX === 1 && contentY === 1 ? (
+                // (1,1) SOCIALS & SHOP (Link List)
+                <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '350px', display: 'flex', flexDirection: 'column' }}>
+
+                  {/* LINKS */}
+                  {[
+                    { id: '01', label: 'INSTAGRAM', url: 'https://www.instagram.com/goodcmpany/' },
+                    { id: '02', label: 'SPOTIFY', url: 'https://open.spotify.com/intl-de/artist/6eCZz1kzSVLeQy2YRTEtO7' },
+                    { id: '03', label: 'SHOP (COMING SOON)', url: '#' }
+                  ].map((link, i) => (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        textDecoration: 'none',
+                        color: '#808080',
+                        fontFamily: 'monospace',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '20px 0',
+                        borderBottom: '1px solid #1a1a1a',
+                        transition: 'color 0.3s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#ececec';
+                        const num = e.currentTarget.querySelector('.num');
+                        if (num) num.textContent = '->';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#808080';
+                        const num = e.currentTarget.querySelector('.num');
+                        if (num) num.textContent = link.id;
+                      }}
+                    >
+                      <span className="num" style={{ width: '40px', letterSpacing: '0.1em', transition: 'all 0.2s ease' }}>{link.id}</span>
+                      <span style={{ letterSpacing: '0.2em' }}>// {link.label}</span>
+                    </a>
                   ))}
-                </ul>
-              </div>
-            ) : contentX === 2 && contentY === 0 ? (
-              // (2,0) THE VAULT
-              <VaultCell />
-            ) : contentX === 0 && contentY === 1 ? (
 
+                  {/* FOOTER NOTE */}
+                  <div style={{ marginTop: '40px', fontSize: '10px', color: '#444', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                    FOR SERVICES & MANAGEMENT SEE <span
+                      style={{ color: '#888', borderBottom: '1px solid #888', cursor: 'pointer' }}
+                      onClick={() => {
+                        // Flawless Navigation: Slide -> Commit -> Reset
+                        if (size.w === 0 || isAnimating.current) return;
+                        isAnimating.current = true;
 
-              // (0,1) LIVING GALLERY (Asymmetric Living Layout)
-              <GalleryCell x={x} y={y} size={size} isZoomedOut={isZoomedOut} />
+                        // 1. Visual Slide (Move Camera Down)
+                        animate(y, y.get() - size.h, { ...PHYSICS }).then(() => {
+                          // 2. Logic Commit (Update Coordinate)
+                          currentPos.current.y += 1;
 
-            ) : contentX === 1 && contentY === 1 ? (
-              // (1,1) SOCIALS & SHOP (Link List)
-              <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '350px', display: 'flex', flexDirection: 'column' }}>
+                          // 3. Physical Reset (Teleport Camera Back to 0)
+                          // The grid re-renders around the new currentPos, so 0 is now the new center.
+                          y.jump(0);
 
-                {/* LINKS */}
-                {[
-                  { id: '01', label: 'INSTAGRAM', url: 'https://www.instagram.com/goodcmpany/' },
-                  { id: '02', label: 'SPOTIFY', url: 'https://open.spotify.com/intl-de/artist/6eCZz1kzSVLeQy2YRTEtO7' },
-                  { id: '03', label: 'SHOP (COMING SOON)', url: '#' }
-                ].map((link, i) => (
-                  <a
-                    key={link.id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                          // 4. Force Render
+                          setTick(t => t + 1);
+                          isAnimating.current = false;
+                        });
+                      }}
+                    >[SIGNAL]</span>
+                  </div>
+
+                </div>
+              ) : contentX === 2 && contentY === 1 ? (
+                // (2,1) STUDIO (YouTube Embed)
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}>
+
+                  {/* VIDEO CONTAINER */}
+                  <div
                     style={{
-                      textDecoration: 'none',
-                      color: '#808080',
-                      fontFamily: 'monospace',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '20px 0',
-                      borderBottom: '1px solid #1a1a1a',
-                      transition: 'color 0.3s ease'
+                      width: size.w < 768 ? '100%' : '95%',
+                      maxWidth: size.w < 768 ? 'none' : '800px',
+                      aspectRatio: '16/9',
+                      position: 'relative',
+                      border: '1px solid #1a1a1a',
+                      background: '#000',
+                      transition: 'border-color 0.3s ease',
+                      overflow: 'hidden' // Ensure image doesn't bleed
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#ececec';
-                      const num = e.currentTarget.querySelector('.num');
-                      if (num) num.textContent = '->';
+                      if (activeStudioInstance !== instanceId) e.currentTarget.style.borderColor = '#333';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = '#808080';
-                      const num = e.currentTarget.querySelector('.num');
-                      if (num) num.textContent = link.id;
+                      e.currentTarget.style.borderColor = '#1a1a1a';
                     }}
                   >
-                    <span className="num" style={{ width: '40px', letterSpacing: '0.1em', transition: 'all 0.2s ease' }}>{link.id}</span>
-                    <span style={{ letterSpacing: '0.2em' }}>// {link.label}</span>
-                  </a>
-                ))}
-
-                {/* FOOTER NOTE */}
-                <div style={{ marginTop: '40px', fontSize: '10px', color: '#444', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
-                  FOR SERVICES & MANAGEMENT SEE <span
-                    style={{ color: '#888', borderBottom: '1px solid #888', cursor: 'pointer' }}
-                    onClick={() => {
-                      // Flawless Navigation: Slide -> Commit -> Reset
-                      if (size.w === 0 || isAnimating.current) return;
-                      isAnimating.current = true;
-
-                      // 1. Visual Slide (Move Camera Down)
-                      animate(y, y.get() - size.h, { ...PHYSICS }).then(() => {
-                        // 2. Logic Commit (Update Coordinate)
-                        currentPos.current.y += 1;
-
-                        // 3. Physical Reset (Teleport Camera Back to 0)
-                        // The grid re-renders around the new currentPos, so 0 is now the new center.
-                        y.jump(0);
-
-                        // 4. Force Render
-                        setTick(t => t + 1);
-                        isAnimating.current = false;
-                      });
-                    }}
-                  >[SIGNAL]</span>
-                </div>
-
-              </div>
-            ) : contentX === 2 && contentY === 1 ? (
-              // (2,1) STUDIO (YouTube Embed)
-              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}>
-
-                {/* VIDEO CONTAINER */}
-                <div
-                  style={{
-                    width: size.w < 768 ? '100%' : '95%',
-                    maxWidth: size.w < 768 ? 'none' : '800px',
-                    aspectRatio: '16/9',
-                    position: 'relative',
-                    border: '1px solid #1a1a1a',
-                    background: '#000',
-                    transition: 'border-color 0.3s ease',
-                    overflow: 'hidden' // Ensure image doesn't bleed
-                  }}
-                  onMouseEnter={(e) => {
-                    if (activeStudioInstance !== instanceId) e.currentTarget.style.borderColor = '#333';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#1a1a1a';
-                  }}
-                >
-                  {isZoomedOut ? (
-                    // STATIC THUMBNAIL (For Infinite Drag Optimization)
-                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                      <img
-                        src="https://img.youtube.com/vi/6zMS8ZRzQ1o/maxresdefault.jpg"
-                        alt="Studio Session"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }}
-                      />
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #ececec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <div style={{ width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid #ececec', marginLeft: '4px' }} />
+                    {isZoomedOut ? (
+                      // STATIC THUMBNAIL (For Infinite Drag Optimization)
+                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                        <img
+                          src="https://img.youtube.com/vi/6zMS8ZRzQ1o/maxresdefault.jpg"
+                          alt="Studio Session"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }}
+                        />
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #ececec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid #ececec', marginLeft: '4px' }} />
+                          </div>
                         </div>
                       </div>
+                    ) : (
+                      // INTERACTIVE IFRAME
+                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                        <iframe
+                          width="100%" height="100%"
+                          src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeStudioInstance === instanceId ? '&autoplay=1' : ''}`}
+                          title="Studio Session"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          style={{
+                            width: '100%', height: '100%',
+                            filter: activeStudioInstance === instanceId ? 'none' : 'brightness(0.9)',
+                            transition: 'filter 0.5s ease',
+                            opacity: activeStudioInstance === instanceId ? 1 : 0.7,
+                            pointerEvents: activeStudioInstance === instanceId ? 'auto' : 'none'
+                          }}
+                        ></iframe>
+
+                        {/* OVERLAY (Click to Play) */}
+                        {activeStudioInstance !== instanceId && (
+                          <div
+                            onClick={() => setActiveStudioInstance(instanceId)}
+                            style={{
+                              position: 'absolute', inset: 0,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer', zIndex: 10
+                            }}
+                          >
+                            <span style={{
+                              fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.1em',
+                              color: '#ececec', background: 'rgba(0,0,0,0.6)', padding: '5px 10px',
+                              border: '1px solid #333'
+                            }}>
+                              [ PLAY_STUDIO_SESSION ]
+                            </span>
+                          </div>
+                        )}
+
+                        {/* STOP BUTTON (Physically removes iframe) */}
+                        {activeStudioInstance === instanceId && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveStudioInstance(null); }}
+                            style={{
+                              position: 'absolute', top: '20px', right: '20px',
+                              background: 'rgba(0,0,0,0.8)', color: '#ececec', border: '1px solid #333',
+                              fontFamily: 'monospace', fontSize: '10px', padding: '5px 10px',
+                              cursor: 'pointer', zIndex: 20, letterSpacing: '0.1em'
+                            }}
+                          >
+                            [ STOP_SESSION ]
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* METADATA FOOTER */}
+                  <div style={{
+                    marginTop: '20px',
+                    width: size.w < 768 ? '100%' : '95%',
+                    maxWidth: size.w < 768 ? 'none' : '800px',
+                    padding: size.w < 768 ? '0 20px' : '0', // Add padding on mobile so text doesn't hit edge
+                    display: 'flex', justifyContent: 'space-between',
+                    fontFamily: 'monospace', fontSize: '10px', color: '#555',
+                    opacity: activeStudioInstance === instanceId ? 0.3 : 1,
+                    transition: 'opacity 0.5s ease'
+                  }}>
+                    <span>REC_DATE: 2024_SESSION_04</span>
+                    <span style={{ display: 'block' }}>LOCATION: STUDIO_HIDDEN</span>
+                    <span>FORMAT: 4K_RAW_GRAIN</span>
+                  </div>
+
+                </div>
+              ) : contentX === 0 && contentY === 2 ? (
+                // (0,2) DATES (Ticker/List)
+                <div style={{ width: '100%', padding: '0 10%', pointerEvents: 'auto' }}>
+                  <div style={{ borderBottom: '1px solid #333', paddingBottom: '10px', marginBottom: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '10px', color: '#808080' }}>
+                    <span style={{ textAlign: 'left' }}>DATE</span><span style={{ textAlign: 'center' }}>CITY</span><span style={{ textAlign: 'right' }}>VENUE</span>
+                  </div>
+                  {[
+                    { d: '22.03.26', c: 'BERLIN', v: 'KANTINE AM BERGHAIN' }
+                  ].map((date, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '14px', color: '#ececec', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(50,50,50,0.5)' }}>
+                      <span style={{ textAlign: 'left' }}>{date.d}</span>
+                      <span style={{ textAlign: 'center' }}>{date.c}</span>
+                      <span style={{ color: '#888', textAlign: 'right' }}>{date.v}</span>
                     </div>
-                  ) : (
-                    // INTERACTIVE IFRAME
-                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                      <iframe
-                        width="100%" height="100%"
-                        src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeStudioInstance === instanceId ? '&autoplay=1' : ''}`}
-                        title="Studio Session"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        style={{
-                          width: '100%', height: '100%',
-                          filter: activeStudioInstance === instanceId ? 'none' : 'brightness(0.9)',
-                          transition: 'filter 0.5s ease',
-                          opacity: activeStudioInstance === instanceId ? 1 : 0.7,
-                          pointerEvents: activeStudioInstance === instanceId ? 'auto' : 'none'
-                        }}
-                      ></iframe>
+                  ))}
+                </div>
+              ) : contentX === 1 && contentY === 2 ? (
+                // (1,2) CONNECT / SIGNAL INTERFACE
+                <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '30px', fontFamily: 'monospace', color: '#ececec' }}>
 
-                      {/* OVERLAY (Click to Play) */}
-                      {activeStudioInstance !== instanceId && (
-                        <div
-                          onClick={() => setActiveStudioInstance(instanceId)}
-                          style={{
-                            position: 'absolute', inset: 0,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', zIndex: 10
-                          }}
-                        >
-                          <span style={{
-                            fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.1em',
-                            color: '#ececec', background: 'rgba(0,0,0,0.6)', padding: '5px 10px',
-                            border: '1px solid #333'
-                          }}>
-                            [ PLAY_STUDIO_SESSION ]
-                          </span>
-                        </div>
-                      )}
+                  {/* HEADER */}
+                  <div style={{ fontSize: '10px', opacity: 0.5, letterSpacing: '0.2em' }}>
+                    SIGNAL STATUS: ACTIVE
+                  </div>
 
-                      {/* STOP BUTTON (Physically removes iframe) */}
-                      {activeStudioInstance === instanceId && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setActiveStudioInstance(null); }}
-                          style={{
-                            position: 'absolute', top: '20px', right: '20px',
-                            background: 'rgba(0,0,0,0.8)', color: '#ececec', border: '1px solid #333',
-                            fontFamily: 'monospace', fontSize: '10px', padding: '5px 10px',
-                            cursor: 'pointer', zIndex: 20, letterSpacing: '0.1em'
-                          }}
-                        >
-                          [ STOP_SESSION ]
-                        </button>
-                      )}
+                  {/* FORM CONTAINER */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+
+                    {/* INPUT 01: SOURCE_ID */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>SOURCE_ID:</label>
+                      <input
+                        type="email"
+                        placeholder="[ YOUR MAIL ]"
+                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#ececec', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
+                      />
+                    </div>
+
+                    {/* INPUT 02: ENCODE_MSG */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>ENCODE_MSG:</label>
+                      <input
+                        type="text"
+                        placeholder="[ YOUR MESSAGE ]"
+                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#888', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
+                        onFocus={(e) => e.target.style.color = '#ececec'}
+                        onBlur={(e) => e.target.style.color = '#888'}
+                      />
+                    </div>
+
+                    {/* SUBMIT ACTION */}
+                    <button
+                      style={{ marginTop: '20px', background: 'transparent', border: '1px solid #ececec', padding: '15px', color: '#ececec', cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', transition: 'all 0.2s ease' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ececec'; e.currentTarget.style.color = '#0c0c0c'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ececec'; }}
+                    >
+                      [ SEND SIGNAL ]
+                    </button>
+
+                  </div>
+
+                  {/* BACKUP LINK */}
+                  <div style={{ marginTop: 'auto', textAlign: 'center', opacity: 0.3 }}>
+                    <a href="mailto:hello@goodcompany.com" style={{ color: '#ececec', textDecoration: 'none', fontSize: '10px' }}>hello@goodcompany.com</a>
+                  </div>
+
+                </div>
+              ) : (
+                // (2,2) IMPRINT & SONIC VOID
+                <div
+                  style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={() => setAudioEnabled(true)}
+                >
+
+                  {/* SONIC ELEMENT (Reactive Pulse) */}
+                  <div style={{ width: '100%', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.8, pointerEvents: 'none' }}>
+                    <svg width="400px" height="150px" viewBox="0 0 400 150" style={{ overflow: 'visible' }}>
+                      {/* Layer 1: Slow & Wide (Subtle) */}
+                      <motion.path
+                        d="M0 75 Q 100 65, 200 75 T 400 75 T 600 75"
+                        animate={{ x: ["0%", "-50%"] }}
+                        transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                        style={{ scaleY: waveScale, originY: '50%', opacity: 0.6 }}
+                        stroke="#ececec" strokeWidth="1" fill="none"
+                      />
+                      {/* Layer 2: Medium (Interference) */}
+                      <motion.path
+                        d="M0 75 Q 75 85, 150 75 T 300 75 T 450 75"
+                        animate={{ x: ["0%", "-50%"] }}
+                        transition={{ duration: 17, repeat: Infinity, ease: "linear" }}
+                        style={{ scaleY: waveScale, originY: '50%', opacity: 0.4 }}
+                        stroke="#ececec" strokeWidth="1" fill="none"
+                      />
+                      {/* Layer 3: Fast & Tight (Detail) */}
+                      <motion.path
+                        d="M0 75 Q 50 70, 100 75 T 200 75 T 300 75 T 400 75"
+                        animate={{ x: ["-50%", "0%"] }} // Counter-flow
+                        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                        style={{ scaleY: waveScale, originY: '50%', opacity: 0.3 }}
+                        stroke="#ececec" strokeWidth="1" fill="none"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* SPOTIFY PLAYER */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '40px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '300px',
+                    height: '80px',
+                    opacity: audioEnabled ? 1 : 0,
+                    pointerEvents: audioEnabled ? 'auto' : 'none',
+                    transition: 'opacity 1s ease',
+                    filter: 'grayscale(1) invert(1) contrast(1.2)'
+                  }}>
+                    <iframe
+                      style={{ borderRadius: '12px' }}
+                      src="https://open.spotify.com/embed/artist/6eCZz1kzSVLeQy2YRTEtO7?utm_source=generator&theme=0"
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      allowFullScreen
+                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                      loading="lazy"
+                    />
+                  </div>
+
+                  {/* SYNC TRIGGER OVERLAY */}
+                  {!audioEnabled && (
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontFamily: 'monospace', fontSize: '10px', letterSpacing: '0.3em', color: '#ececec', cursor: 'pointer', opacity: 0.7 }}>
+                      [ CLICK TO SYNC AUDIO ]
                     </div>
                   )}
-                </div>
 
-                {/* METADATA FOOTER */}
-                <div style={{
-                  marginTop: '20px',
-                  width: size.w < 768 ? '100%' : '95%',
-                  maxWidth: size.w < 768 ? 'none' : '800px',
-                  padding: size.w < 768 ? '0 20px' : '0', // Add padding on mobile so text doesn't hit edge
-                  display: 'flex', justifyContent: 'space-between',
-                  fontFamily: 'monospace', fontSize: '10px', color: '#555',
-                  opacity: activeStudioInstance === instanceId ? 0.3 : 1,
-                  transition: 'opacity 0.5s ease'
-                }}>
-                  <span>REC_DATE: 2024_SESSION_04</span>
-                  <span style={{ display: 'block' }}>LOCATION: STUDIO_HIDDEN</span>
-                  <span>FORMAT: 4K_RAW_GRAIN</span>
-                </div>
-
-              </div>
-            ) : contentX === 0 && contentY === 2 ? (
-              // (0,2) DATES (Ticker/List)
-              <div style={{ width: '100%', padding: '0 10%', pointerEvents: 'auto' }}>
-                <div style={{ borderBottom: '1px solid #333', paddingBottom: '10px', marginBottom: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '10px', color: '#808080' }}>
-                  <span style={{ textAlign: 'left' }}>DATE</span><span style={{ textAlign: 'center' }}>CITY</span><span style={{ textAlign: 'right' }}>VENUE</span>
-                </div>
-                {[
-                  { d: '22.03.26', c: 'BERLIN', v: 'KANTINE AM BERGHAIN' }
-                ].map((date, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '14px', color: '#ececec', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(50,50,50,0.5)' }}>
-                    <span style={{ textAlign: 'left' }}>{date.d}</span>
-                    <span style={{ textAlign: 'center' }}>{date.c}</span>
-                    <span style={{ color: '#888', textAlign: 'right' }}>{date.v}</span>
-                  </div>
-                ))}
-              </div>
-            ) : contentX === 1 && contentY === 2 ? (
-              // (1,2) CONNECT / SIGNAL INTERFACE
-              <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '30px', fontFamily: 'monospace', color: '#ececec' }}>
-
-                {/* HEADER */}
-                <div style={{ fontSize: '10px', opacity: 0.5, letterSpacing: '0.2em' }}>
-                  SIGNAL STATUS: ACTIVE
-                </div>
-
-                {/* FORM CONTAINER */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-
-                  {/* INPUT 01: SOURCE_ID */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>SOURCE_ID:</label>
-                    <input
-                      type="email"
-                      placeholder="[ YOUR MAIL ]"
-                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#ececec', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
-                    />
-                  </div>
-
-                  {/* INPUT 02: ENCODE_MSG */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>ENCODE_MSG:</label>
-                    <input
-                      type="text"
-                      placeholder="[ YOUR MESSAGE ]"
-                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#888', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
-                      onFocus={(e) => e.target.style.color = '#ececec'}
-                      onBlur={(e) => e.target.style.color = '#888'}
-                    />
-                  </div>
-
-                  {/* SUBMIT ACTION */}
-                  <button
-                    style={{ marginTop: '20px', background: 'transparent', border: '1px solid #ececec', padding: '15px', color: '#ececec', cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', transition: 'all 0.2s ease' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#ececec'; e.currentTarget.style.color = '#0c0c0c'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ececec'; }}
+                  {/* LEGAL FOOTER (Bottom Right) */}
+                  <div
+                    style={{ position: 'absolute', bottom: '40px', right: '40px', textAlign: 'right', fontFamily: 'monospace', fontSize: '10px', color: '#ececec', opacity: 0.1, transition: 'opacity 0.3s ease', cursor: 'default', textTransform: 'uppercase' }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.1'}
                   >
-                    [ SEND SIGNAL ]
-                  </button>
-
-                </div>
-
-                {/* BACKUP LINK */}
-                <div style={{ marginTop: 'auto', textAlign: 'center', opacity: 0.3 }}>
-                  <a href="mailto:hello@goodcompany.com" style={{ color: '#ececec', textDecoration: 'none', fontSize: '10px' }}>hello@goodcompany.com</a>
-                </div>
-
-              </div>
-            ) : (
-              // (2,2) IMPRINT & SONIC VOID
-              <div
-                style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
-                onClick={() => setAudioEnabled(true)}
-              >
-
-                {/* SONIC ELEMENT (Reactive Pulse) */}
-                <div style={{ width: '100%', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.8, pointerEvents: 'none' }}>
-                  <svg width="400px" height="150px" viewBox="0 0 400 150" style={{ overflow: 'visible' }}>
-                    {/* Layer 1: Slow & Wide (Subtle) */}
-                    <motion.path
-                      d="M0 75 Q 100 65, 200 75 T 400 75 T 600 75"
-                      animate={{ x: ["0%", "-50%"] }}
-                      transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                      style={{ scaleY: waveScale, originY: '50%', opacity: 0.6 }}
-                      stroke="#ececec" strokeWidth="1" fill="none"
-                    />
-                    {/* Layer 2: Medium (Interference) */}
-                    <motion.path
-                      d="M0 75 Q 75 85, 150 75 T 300 75 T 450 75"
-                      animate={{ x: ["0%", "-50%"] }}
-                      transition={{ duration: 17, repeat: Infinity, ease: "linear" }}
-                      style={{ scaleY: waveScale, originY: '50%', opacity: 0.4 }}
-                      stroke="#ececec" strokeWidth="1" fill="none"
-                    />
-                    {/* Layer 3: Fast & Tight (Detail) */}
-                    <motion.path
-                      d="M0 75 Q 50 70, 100 75 T 200 75 T 300 75 T 400 75"
-                      animate={{ x: ["-50%", "0%"] }} // Counter-flow
-                      transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                      style={{ scaleY: waveScale, originY: '50%', opacity: 0.3 }}
-                      stroke="#ececec" strokeWidth="1" fill="none"
-                    />
-                  </svg>
-                </div>
-
-                {/* SPOTIFY PLAYER */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '40px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '300px',
-                  height: '80px',
-                  opacity: audioEnabled ? 1 : 0,
-                  pointerEvents: audioEnabled ? 'auto' : 'none',
-                  transition: 'opacity 1s ease',
-                  filter: 'grayscale(1) invert(1) contrast(1.2)'
-                }}>
-                  <iframe
-                    style={{ borderRadius: '12px' }}
-                    src="https://open.spotify.com/embed/artist/6eCZz1kzSVLeQy2YRTEtO7?utm_source=generator&theme=0"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    allowFullScreen
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                  />
-                </div>
-
-                {/* SYNC TRIGGER OVERLAY */}
-                {!audioEnabled && (
-                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontFamily: 'monospace', fontSize: '10px', letterSpacing: '0.3em', color: '#ececec', cursor: 'pointer', opacity: 0.7 }}>
-                    [ CLICK TO SYNC AUDIO ]
+                    <div style={{ marginBottom: '10px' }}>
+                      <span style={{ cursor: 'pointer', marginRight: '15px' }}>LEGAL_REF // IMPRINT</span>
+                      <span style={{ cursor: 'pointer' }}>DATA_PROT // PRIVACY</span>
+                    </div>
+                    <div style={{ letterSpacing: '0.1em' }}>
+                      ©2026 GOOD COMPANY. ALL RIGHTS RESERVED.
+                    </div>
                   </div>
-                )}
 
-                {/* LEGAL FOOTER (Bottom Right) */}
-                <div
-                  style={{ position: 'absolute', bottom: '40px', right: '40px', textAlign: 'right', fontFamily: 'monospace', fontSize: '10px', color: '#ececec', opacity: 0.1, transition: 'opacity 0.3s ease', cursor: 'default', textTransform: 'uppercase' }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.1'}
-                >
-                  <div style={{ marginBottom: '10px' }}>
-                    <span style={{ cursor: 'pointer', marginRight: '15px' }}>LEGAL_REF // IMPRINT</span>
-                    <span style={{ cursor: 'pointer' }}>DATA_PROT // PRIVACY</span>
-                  </div>
-                  <div style={{ letterSpacing: '0.1em' }}>
-                    ©2026 GOOD COMPANY. ALL RIGHTS RESERVED.
-                  </div>
                 </div>
-
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </WrappedCell>
         );
       }
     }
@@ -1111,13 +944,18 @@ export default function Home() {
 
         <motion.div
           drag
-          dragDirectionLock={!isZoomedOut}
-          dragMomentum={isZoomedOut}
-          // Infinite Constraints when zoomed out (undefined = no limit)
-          dragConstraints={isZoomedOut ? undefined : undefined}
-          // Low friction for "Glide" feel
-          dragElastic={isZoomedOut ? 0.05 : 0}
-          dragTransition={isZoomedOut ? { power: 2, timeConstant: 1000 } : undefined}
+          dragDirectionLock={false} // Use Free Drag always for Infinite Momentum
+          dragMomentum={true}
+          // Infinite Constraints
+          dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }} // Trick: set invalid constraints to make it "free"? 
+          // Actually, undefined constraints = free, BUT we want momentum. 
+          // If we set dragConstraints to undefined, it works.
+          // User said "Entferne alle harten dragConstraints".
+          dragConstraints={undefined}
+
+          // Smooth Momentum
+          dragElastic={0.05}
+          dragTransition={{ power: 0.8, timeConstant: 200 }}
           onDragStart={() => {
             isDragging.current = true;
             isAnimating.current = false;
