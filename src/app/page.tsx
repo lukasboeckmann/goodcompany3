@@ -380,7 +380,7 @@ export default function Home() {
   const sizeRef = useRef({ w: 0, h: 0 });
   const [activeArtist, setActiveArtist] = useState<null | typeof ARTISTS[0]>(null);
   const [hoveredArtistId, setHoveredArtistId] = useState<string | null>(null); // Hover Spotlight
-  const [studioActive, setStudioActive] = useState(false);
+  const [activeVideoInstance, setActiveVideoInstance] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   // 1A. ZOOM / BIRD'S EYE STATE
@@ -616,6 +616,7 @@ export default function Home() {
         const globalY = cy + j;
         const contentX = ((globalX % 3) + 3) % 3;
         const contentY = ((globalY % 3) + 3) % 3;
+        const uniqueId = `${globalX}-${globalY}`;
 
         c.push(
           <div
@@ -830,7 +831,7 @@ export default function Home() {
                     overflow: 'hidden' // Ensure image doesn't bleed
                   }}
                   onMouseEnter={(e) => {
-                    if (!studioActive) e.currentTarget.style.borderColor = '#333';
+                    if (activeVideoInstance !== uniqueId) e.currentTarget.style.borderColor = '#333';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = '#1a1a1a';
@@ -855,24 +856,24 @@ export default function Home() {
                     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                       <iframe
                         width="100%" height="100%"
-                        src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${studioActive ? '&autoplay=1' : ''}`}
+                        src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeVideoInstance === uniqueId ? '&autoplay=1' : ''}`}
                         title="Studio Session"
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                         style={{
                           width: '100%', height: '100%',
-                          filter: studioActive ? 'none' : 'brightness(0.9)',
+                          filter: activeVideoInstance === uniqueId ? 'none' : 'brightness(0.9)',
                           transition: 'filter 0.5s ease',
-                          opacity: studioActive ? 1 : 0.7,
-                          pointerEvents: studioActive ? 'auto' : 'none'
+                          opacity: activeVideoInstance === uniqueId ? 1 : 0.7,
+                          pointerEvents: activeVideoInstance === uniqueId ? 'auto' : 'none'
                         }}
                       ></iframe>
 
                       {/* OVERLAY (Click to Play) */}
-                      {!studioActive && (
+                      {activeVideoInstance !== uniqueId && (
                         <div
-                          onClick={() => setStudioActive(true)}
+                          onClick={() => setActiveVideoInstance(uniqueId)}
                           style={{
                             position: 'absolute', inset: 0,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -900,7 +901,7 @@ export default function Home() {
                   padding: size.w < 768 ? '0 20px' : '0', // Add padding on mobile so text doesn't hit edge
                   display: 'flex', justifyContent: 'space-between',
                   fontFamily: 'monospace', fontSize: '10px', color: '#555',
-                  opacity: studioActive ? 0.3 : 1,
+                  opacity: activeVideoInstance === uniqueId ? 0.3 : 1,
                   transition: 'opacity 0.5s ease'
                 }}>
                   <span>REC_DATE: 2024_SESSION_04</span>
