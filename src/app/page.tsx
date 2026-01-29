@@ -13,8 +13,12 @@ const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
   const periodH = size.h * 3;
 
   const xOffset = useTransform(x, (v) => {
-    // ZOOM MODE: Rigid Grid (No Wrapping, Moves with Drag)
-    if (isZoomedOut) return cx * size.w;
+    // ZOOM MODE: Grid moves with drag, cells offset from center
+    if (isZoomedOut) {
+      // Position cells relative to viewport center
+      // cx=0 should be left, cx=1 center, cx=2 right
+      return (cx - 1) * size.w; // Center grid on cx=1
+    }
 
     // INFINITE MODE: Wrapping Logic (Compensates Drag to stay in view)
     if (!periodW) return 0;
@@ -24,8 +28,10 @@ const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
   });
 
   const yOffset = useTransform(y, (v) => {
-    // ZOOM MODE: Rigid Grid
-    if (isZoomedOut) return cy * size.h;
+    // ZOOM MODE: Grid moves with drag
+    if (isZoomedOut) {
+      return (cy - 1) * size.h; // Center grid on cy=1
+    }
 
     // INFINITE MODE
     if (!periodH) return 0;
@@ -606,6 +612,30 @@ export default function Home() {
                 onPointerDown={(e) => {
                   dragStartPos.current = { x: e.clientX, y: e.clientY };
                 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+
+                  // 1. DEADZONE: < 5px = Tap
+                  const dist = Math.hypot(
+                    e.clientX - dragStartPos.current.x,
+                    e.clientY - dragStartPos.current.y
+                  );
+                  if (dist >= 5) return; // Was a drag
+
+                  // 2. DRAG-FLAG Check
+                  if (isMapDragging.current) return;
+
+                  // 3. ZOOM-IN: Center this cell
+                  const targetX = -contentX * size.w;
+                  const targetY = -contentY * size.h;
+                  x.set(targetX);
+                  y.set(targetY);
+
+                  // 4. Enter Detail Mode
+                  isZoomingIn.current = true;
+                  setIsZoomedOut(false);
+                }}
               />
             )}
 
@@ -621,29 +651,6 @@ export default function Home() {
                 border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
                 borderRadius: isZoomedOut ? '10px' : '0px',
                 transition: 'border 0.3s ease, border-radius 0.3s ease',
-              }}
-              onClickCapture={(e) => {
-                if (isZoomedOut) {
-                  e.preventDefault(); e.stopPropagation();
-
-                  // 1. DEADZONE GUARD: Strict 5px Threshold
-                  const dist = Math.hypot(e.clientX - dragStartPos.current.x, e.clientY - dragStartPos.current.y);
-                  if (dist > 5) return; // If moved more than 5px, it's a drag.
-
-                  // 2. DRAG GUARD: Flag Check
-                  if (isMapDragging.current) return;
-
-                  // 3. ZOOM IN LOGIC (Clean Tap Only)
-                  const targetX = -contentX * size.w;
-                  const targetY = -contentY * size.h;
-
-                  x.set(targetX);
-                  y.set(targetY);
-
-                  // 4. ENTER DETAIL MODE
-                  isZoomingIn.current = true;
-                  setIsZoomedOut(false);
-                }
               }}
             >
               {contentX === 0 && contentY === 0 ? (
@@ -1046,6 +1053,7 @@ export default function Home() {
       }} />
 
 
+      {/* OUTER CONTAINER: Scale/Zoom Only (No Drag) */}
       <motion.div
         animate={{
           scale: isZoomedOut ? 0.25 : 1,
@@ -1065,13 +1073,38 @@ export default function Home() {
         {/* GLOBAL BACKGROUND TEXT (Static in Scale Wrapper) */}
         <BackgroundText />
 
+        {/* Z-INDEX LOCK: Event Blocker im Zoom-Modus */}
+        {isZoomedOut && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              pointerEvents: 'none' // Lässt Drag durch, blockiert Clicks
+            }}
+          />
+        )}
+
+        {/* INNER CONTAINER: Drag/Modulo Only (No Scale) */}
         <motion.div
           drag
-          dragDirectionLock={isZoomedOut ? false : (!isZoomedOut && !isZoomingIn.current)} // STRICT: Unlock immediately on zoom out
+          dragDirectionLock={!isZoomedOut && !isZoomingIn.current}
           dragMomentum={isZoomedOut}
-          dragTransition={isZoomedOut ? { power: 0.2, timeConstant: 200 } : undefined} // DRY SLIDE for Map
+          dragTransition={
+            isZoomedOut
+              ? { power: 0.2, timeConstant: 200 }
+              : {
+                power: 0.8,
+                modifyTarget: (target) => {
+                  const s = sizeRef.current;
+                  if (s.w === 0) return target;
+                  // Snap to grid in Detail view only
+                  return Math.round(target / s.w) * s.w;
+                }
+              }
+          }
           dragElastic={0}
-          dragConstraints={isZoomedOut ? false : undefined} // STRICT: No constraints in map mode
+          dragConstraints={false}
           onDragStart={() => {
             isDragging.current = true;
             if (isZoomedOut) isMapDragging.current = true;
@@ -1081,14 +1114,8 @@ export default function Home() {
           }}
           onDragEnd={(e, info) => {
             handleDragEnd(e, info);
-            // Short timeout to clear "dragging" status so clicks don't fire immediately after drag
-            setTimeout(() => {
-              isDragging.current = false;
-              isMapDragging.current = false;
-            }, 250); // Increased to 250ms for safety
           }}
           onLayoutAnimationComplete={() => {
-            // Re-enable Lock AFTER zoom-in finishes
             if (isZoomingIn.current) {
               isZoomingIn.current = false;
             }
@@ -1101,8 +1128,6 @@ export default function Home() {
           }}
           whileTap={{ cursor: isZoomedOut ? 'grabbing' : 'grabbing' }}
         >
-
-
           {cells}
         </motion.div>
       </motion.div>
