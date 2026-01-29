@@ -1,77 +1,9 @@
 'use client';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, useMotionValue, animate, PanInfo, AnimatePresence, useTransform, useVelocity, useSpring, MotionValue } from 'framer-motion';
+import { motion, useMotionValue, animate, PanInfo, AnimatePresence, useTransform, useVelocity, useSpring } from 'framer-motion';
 
 // 1. SOULFUL PHYSICS (MAX SPEED - CRITICAL DAMPING)
 const PHYSICS = { type: "spring" as const, stiffness: 700, damping: 60, mass: 1, restDelta: 0.5 };
-
-// WRAPPED CELL COMPONENT
-const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
-  x: MotionValue<number>, y: MotionValue<number>, cx: number, cy: number, size: { w: number, h: number }, isZoomedOut: boolean, children: React.ReactNode
-}) => {
-  const periodW = size.w * 3;
-  const periodH = size.h * 3;
-
-  const xOffset = useTransform(x, (v) => {
-    if (isZoomedOut) {
-      // In zoom mode: NO offset, cells positioned by i/j in parent
-      return 0;
-    }
-
-    // INFINITE MODE: Wrapping Logic
-    if (!periodW) return 0;
-    const base = cx * size.w;
-    const total = base + v;
-    return (((total + 1.5 * size.w) % periodW + periodW) % periodW - 1.5 * size.w) - v;
-  });
-
-  const yOffset = useTransform(y, (v) => {
-    if (isZoomedOut) {
-      return 0;
-    }
-
-    // INFINITE MODE
-    if (!periodH) return 0;
-    const base = cy * size.h;
-    const total = base + v;
-    return (((total + 1.5 * size.h) % periodH + periodH) % periodH - 1.5 * size.h) - v;
-  });
-
-  // INNER PARALLAX (Phantom.land)
-  // Calculate the "visual position" on screen relative to center
-  // screenX = x + xOffset. (This is 0 when centered)
-  // We want the content to lag slightly behind the movement.
-  // If the cell moves RIGHT (screenX increases), content should move LEFT (negative).
-  const parallaxX = useTransform([x, xOffset], ([latestX, latestOffset]) => {
-    return ((latestX as number) + (latestOffset as number)) * -0.05; // 5% lag
-  });
-  const parallaxY = useTransform([y, yOffset], ([latestY, latestOffset]) => {
-    return ((latestY as number) + (latestOffset as number)) * -0.05;
-  });
-
-
-  return (
-    <motion.div
-      style={{
-        position: 'absolute',
-        left: isZoomedOut ? cx * size.w : 0,
-        top: isZoomedOut ? cy * size.h : 0,
-        width: size.w,
-        height: size.h,
-        x: xOffset,
-        y: yOffset,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        pointerEvents: 'none'
-      }}
-    >
-      <motion.div style={{ width: '100%', height: '100%', pointerEvents: 'auto', x: parallaxX, y: parallaxY }}>
-        {children}
-      </motion.div>
-    </motion.div>
-  );
-};
 
 const ARTISTS = [
   {
@@ -231,7 +163,7 @@ const VaultCell = () => {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const handleValidate = () => {
-    if (vaultInput.toUpperCase().trim() === 'GOOD_VIBES') {
+    if (vaultInput.toUpperCase().trim() === 'COMPANY') {
       setStatus('DECRYPTING');
       setTimeout(() => setStatus('UNLOCKED'), 1000);
     } else {
@@ -476,22 +408,9 @@ export default function Home() {
   const [activeFilmIndex, setActiveFilmIndex] = useState(0);
 
   const currentPos = useRef({ x: 0, y: 0 });
-  const dragStartPos = useRef({ x: 0, y: 0 }); // For Deadzone Check
-  const dragDistance = useRef(0); // V2-STYLE: Anti-Auto-Zoom
   const isDragging = useRef(false);
-  const isMapDragging = useRef(false);
   const isWarping = useRef(false);
-  const isAnimating = useRef(false);
-  const isZoomingIn = useRef(false);
-
-  // TILT & SCALE (Global Grid Deformation)
-  // Must be declared before early returns.
-  const xVel = useVelocity(x);
-  const yVel = useVelocity(y);
-
-  const tiltX = useTransform(yVel, [-1000, 1000], [2, -2]);
-  const tiltY = useTransform(xVel, [-1000, 1000], [-2, 2]);
-  const scaleEffect = useTransform(useTransform(xVel, v => Math.abs(v)), [0, 2000], [1, 0.98]);
+  const isAnimating = useRef(false); // Delayed Warp Guard
 
   useEffect(() => {
     const handleResize = () => {
@@ -504,76 +423,182 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ZOOM RESET logic
-  useEffect(() => {
-    if (isZoomedOut) {
-      // KILL MOMENTUM IMMEDIATELY
-      x.stop();
-      y.stop();
-      x.set(0);
-      y.set(0);
-    }
-  }, [isZoomedOut, x, y]);
-
   // 2. DELAYED WARP MONITOR
-  // (REMOVED: Infinite Wrapping is now handled by WrappedCell via useTransform)
-  // We keep the Resize listener above, but remove the manual "Jump" logic.
+  useEffect(() => {
+    let rafId: number;
+    const monitor = () => {
+      const s = sizeRef.current;
+      if (s.w === 0) {
+        rafId = requestAnimationFrame(monitor);
+        return;
+      }
 
+      // Skip warp if animating (but NOT if dragging - we want seamless warp DURING infinite drag)
+      if (isWarping.current || isAnimating.current) {
+        rafId = requestAnimationFrame(monitor);
+        return;
+      }
 
-  // 3. HANDLERS
-  // 3. HANDLERS
+      const lx = x.get();
+      const ly = y.get();
+
+      // CAPTURE VELOCITY (For Momentum Handover)
+      const vx = x.getVelocity();
+      const vy = y.getVelocity();
+
+      const threshX = s.w * 1.5;
+      const threshY = s.h * 1.5;
+
+      let warped = false;
+      let warpX = 0; // Track shift for inertia correction
+      let warpY = 0;
+
+      // X Warp Logic
+      if (lx > threshX) {
+        isWarping.current = true;
+        const shift = s.w * 3;
+        x.jump(lx - shift);
+        currentPos.current.x -= 3;
+        warped = true;
+        warpX = -shift;
+      } else if (lx < -threshX) {
+        isWarping.current = true;
+        const shift = s.w * 3;
+        x.jump(lx + shift);
+        currentPos.current.x += 3;
+        warped = true;
+        warpX = shift;
+      }
+
+      // Y Warp Logic
+      if (ly > threshY) {
+        isWarping.current = true;
+        const shift = s.h * 3;
+        y.jump(ly - shift);
+        currentPos.current.y -= 3;
+        warped = true;
+        warpY = -shift;
+      } else if (ly < -threshY) {
+        isWarping.current = true;
+        const shift = s.h * 3;
+        y.jump(ly + shift);
+        currentPos.current.y += 3;
+        warped = true;
+        warpY = shift;
+      }
+
+      if (warped) {
+        // MOMENTUM HANDOVER: If we act while gliding, we must restore the physics engine.
+        // Otherwise, x.jump() acts like a brake.
+        if (isZoomedOut && !isDragging.current) {
+          if (Math.abs(vx) > 10) {
+            animate(x, x.get() + vx * 2, { type: "inertia", velocity: vx, power: 2, timeConstant: 1000 });
+          }
+          if (Math.abs(vy) > 10) {
+            animate(y, y.get() + vy * 2, { type: "inertia", velocity: vy, power: 2, timeConstant: 1000 });
+          }
+        }
+
+        isWarping.current = false;
+        setTick(t => t + 1);
+      }
+
+      rafId = requestAnimationFrame(monitor);
+    };
+
+    rafId = requestAnimationFrame(monitor);
+    return () => cancelAnimationFrame(rafId);
+  }, [x, y]);
+
   // 3. HANDLERS
   const handleDragEnd = (e: any, info: PanInfo) => {
     isDragging.current = false;
     const s = sizeRef.current;
     if (s.w === 0) return;
 
-    // STRICT GUARD: Im Zoom-Modus gibt es KEIN Snapping
+    // IF ZOOMED OUT: FREE DRAG (No Snap)
     if (isZoomedOut) {
-      // Timeout für Click-Prevention
-      setTimeout(() => {
-        isMapDragging.current = false;
-      }, 250);
-      return; // SOFORT BEENDEN - Keine weitere Logik
+      // Just update momentum/glide naturally.
+      // The Warp Monitor (useEffect above) will still run and handle infinite looping if they glide too far.
+      return;
     }
 
-    // --- AB HIER NUR NAHANSICHT ---
-    // CONF_1: MOMENTUM CONTROL (Power)
-    const POWER = 0.2;
+    // IF ZOOMED IN: SNAP LOGIC (Currently Disabled by drag={isZoomedOut}, but kept for future safety)
+    isWarping.current = false;
 
-    // CONF_2: PREDICT LANDING
-    const predX = x.get() + info.velocity.x * POWER;
-    const predY = y.get() + info.velocity.y * POWER;
+    const isX = Math.abs(info.offset.x) > Math.abs(info.offset.y);
+    const vThresh = 500;
+    const dThresh = s.w * 0.15;
 
-    // CONF_3: SAMPLE GRID (Smart Snapping)
-    const snapX = Math.round(predX / s.w) * s.w;
-    const snapY = Math.round(predY / s.h) * s.h;
+    // Calculate nearest LOCAL integer snap
+    const currentRelX = -Math.round(x.get() / s.w);
+    const currentRelY = -Math.round(y.get() / s.h);
 
-    // CONF_4: PHYSICS (Heavy & Premium - Phantom.land Style)
-    const SNAP_PHYSICS = { type: "spring", stiffness: 150, damping: 25, mass: 0.8, restDelta: 0.01 };
+    let modifiersX = 0;
+    let modifiersY = 0;
 
+    if (isX) {
+      if (info.offset.x < -dThresh || info.velocity.x < -vThresh) modifiersX = 1;
+      else if (info.offset.x > dThresh || info.velocity.x > vThresh) modifiersX = -1;
+    } else {
+      if (info.offset.y < -dThresh || info.velocity.y < -vThresh) modifiersY = 1;
+      else if (info.offset.y > dThresh || info.velocity.y > vThresh) modifiersY = -1;
+    }
+
+    const finalX = (currentRelX + modifiersX) * -s.w;
+    const finalY = (currentRelY + modifiersY) * -s.h;
+
+    // START ANIMATION
     isAnimating.current = true;
 
+    // Detect Target Cell for Context-Aware Physics
+    const targetLogX = currentPos.current.x + modifiersX;
+    const targetLogY = currentPos.current.y + modifiersY;
+
+    // Normalize to 0-2 index
+    const tCx = ((targetLogX % 3) + 3) % 3;
+    const tCy = ((targetLogY % 3) + 3) % 3;
+
+    // "Heavy" Gallery Feel (0,1) vs Standard Speed
+    const isGallery = tCx === 0 && tCy === 1;
+    const activePhysics = isGallery
+      ? { type: "spring", stiffness: 120, damping: 30, mass: 2, restDelta: 0.5 } // Heavy
+      : PHYSICS; // Standard Max Speed
+
+    // Velocity Transfer
+    const tx = { ...activePhysics, velocity: info.velocity.x } as any;
+    const ty = { ...PHYSICS, velocity: info.velocity.y } as any;
+
     Promise.all([
-      animate(x, snapX, SNAP_PHYSICS as any),
-      animate(y, snapY, SNAP_PHYSICS as any)
+      animate(x, finalX, tx),
+      animate(y, finalY, ty)
     ]).then(() => {
-      // CONF_5: MODULO NORMALIZATION (The "Zeroing")
-      const periodW = s.w * 3;
-      const periodH = s.h * 3;
-      const currentX = x.get();
-      const currentY = y.get();
+      // PROACTIVE SILENT RESET
+      // Optimized for speed: Reset as soon as animation settles
 
-      if (Math.abs(currentX) > periodW) {
-        const remainderX = currentX % periodW;
-        x.jump(remainderX);
+      // Interrupt Guard: If user started dragging again, abort reset and release control
+      if (isDragging.current) {
+        isAnimating.current = false;
+        return;
       }
 
-      if (Math.abs(currentY) > periodH) {
-        const remainderY = currentY % periodH;
-        y.jump(remainderY);
-      }
+      const s2 = sizeRef.current;
+      if (s2.w === 0) { isAnimating.current = false; return; }
 
+      const shiftX = Math.round(x.get() / s2.w);
+      const shiftY = Math.round(y.get() / s2.h);
+
+      if (shiftX !== 0 || shiftY !== 0) {
+        currentPos.current.x -= shiftX;
+        currentPos.current.y -= shiftY;
+
+        // Physical Reset
+        x.jump(x.get() - shiftX * s2.w);
+        y.jump(y.get() - shiftY * s2.h);
+
+        // Force Render
+        setTick(t => t + 1);
+      }
       isAnimating.current = false;
     });
   };
@@ -585,7 +610,6 @@ export default function Home() {
     const cx = currentPos.current.x;
     const cy = currentPos.current.y;
 
-    // V2-STYLE: 7x7 Rendering (-3 to 3)
     for (let i = -3; i <= 3; i++) {
       for (let j = -3; j <= 3; j++) {
         const globalX = cx + i;
@@ -593,6 +617,8 @@ export default function Home() {
         const contentX = ((globalX % 3) + 3) % 3;
         const contentY = ((globalY % 3) + 3) % 3;
 
+        // GRID COPY INDEX: Map relative (i,j) to a 0-48 index (for a 7x7 buffer)
+        // i and j range from -3 to 3. (i+3) is 0-6.
         const gridCopyIndex = (i + 3) * 7 + (j + 3);
         const cellIndex = contentY * 3 + contentX;
         const instanceId = `${gridCopyIndex}-${cellIndex}`;
@@ -602,426 +628,461 @@ export default function Home() {
             key={`${globalX}-${globalY}`}
             style={{
               position: 'absolute',
-              left: i * size.w,
+              left: i * size.w + (typeof window !== 'undefined' ? window.innerWidth * 0.05 : 0),
               top: j * size.h,
               width: size.w,
               height: size.h,
               display: 'flex',
+              // Layout: Always Center for visual balance, internal content decides positioning
               alignItems: 'center',
               justifyContent: 'center',
               padding: (contentX === 2 && contentY === 1 && size.w < 768) ? '0' : '40px',
-              pointerEvents: isZoomedOut ? 'auto' : 'none',
+              pointerEvents: isZoomedOut ? 'auto' : 'none', // Allow clicks on wrapper when zoomed out
               willChange: 'transform',
               border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
               borderRadius: isZoomedOut ? '10px' : '0px',
               transition: 'border 0.3s ease, border-radius 0.3s ease',
               cursor: isZoomedOut ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
             }}
+            onDoubleClick={(e) => {
+              if (isZoomedOut) {
+                e.preventDefault();
+                e.stopPropagation();
+                // SNAP-IN MOVE (Same logic as Click-to-Zoom)
+                setIsZoomedOut(false);
+                isAnimating.current = true;
+
+                const targetX = -i * size.w;
+                const targetY = -j * size.h;
+
+                Promise.all([
+                  animate(x, targetX, { ...PHYSICS }),
+                  animate(y, targetY, { ...PHYSICS })
+                ]).then(() => {
+                  currentPos.current.x += i;
+                  currentPos.current.y += j;
+                  x.jump(0);
+                  y.jump(0);
+                  setTick(t => t + 1);
+                  isAnimating.current = false;
+                });
+              }
+            }}
+            onClickCapture={(e) => {
+              if (isZoomedOut) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // CLICK-TO-ZOOM-IN LOGIC
+                // 1. Zoom In
+                setIsZoomedOut(false);
+
+                // 2. Animate Camera to Center this Cell
+                // Target shift is -i * size.w, -j * size.h (relative to current center)
+                // Note: We are animating x and y motion values.
+
+                isAnimating.current = true;
+                const targetX = -i * size.w;
+                const targetY = -j * size.h;
+
+                Promise.all([
+                  animate(x, targetX, { ...PHYSICS }),
+                  animate(y, targetY, { ...PHYSICS })
+                ]).then(() => {
+                  // 3. Commit New Center
+                  currentPos.current.x += i;
+                  currentPos.current.y += j;
+
+                  // 4. Physical Reset (Teleport)
+                  x.jump(0);
+                  y.jump(0);
+
+                  // 5. Render
+                  setTick(t => t + 1);
+                  isAnimating.current = false;
+                });
+              }
+            }}
           >
-            {/* OVERLAY INTERCEPTOR (Zoom Mode Only) */}
-            {isZoomedOut && (
-              <div
-                style={{ position: 'absolute', inset: 0, zIndex: 100, pointerEvents: 'auto', cursor: 'grab' }}
-                onPointerDown={(e) => {
-                  dragStartPos.current = { x: e.clientX, y: e.clientY };
-                }}
-              />
-            )}
-
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: (contentX === 2 && contentY === 1 && size.w < 768) ? '0' : '40px',
-                pointerEvents: isZoomedOut ? 'none' : 'auto',
-                border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
-                borderRadius: isZoomedOut ? '10px' : '0px',
-                transition: 'border 0.3s ease, border-radius 0.3s ease',
-              }}
-            >
-              {contentX === 0 && contentY === 0 ? (
-                // 1. CENTER: HEADLINE
-                <div style={{ textAlign: 'center', userSelect: 'none' }}>
-                  <h1 style={{ fontSize: '12vw', fontWeight: 800, textTransform: 'uppercase', lineHeight: 0.8, letterSpacing: '-0.05em', color: '#ececec' }}>Good<br />Company.</h1>
-                </div>
-              ) : contentX === 1 && contentY === 0 ? (
-                // 2. RIGHT: ROSTER (Asymmetric list)
-                <div style={{ textAlign: 'left', userSelect: 'none', pointerEvents: 'auto', width: '100%', paddingLeft: '15%' }}>
-                  <p style={{ color: '#808080', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', marginBottom: '4vh', textTransform: 'uppercase' }}>[ Roster_01.idx ]</p>
-                  <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {ARTISTS.map(artist => (
-                      <li key={artist.id} style={{ marginBottom: '1vh' }}>
-                        <button
-                          onMouseEnter={() => setHoveredArtistId(artist.id)}
-                          onMouseLeave={() => setHoveredArtistId(null)}
-                          onClick={(e) => { e.stopPropagation(); setActiveArtist(artist); }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#ececec',
-                            fontSize: '3vw',
-                            fontWeight: 400,
-                            fontFamily: 'monospace',
-                            cursor: 'pointer',
-                            textTransform: 'uppercase',
-                            opacity: hoveredArtistId ? (hoveredArtistId === artist.id ? 1 : 0.2) : 0.7,
-                            transition: 'opacity 0.4s ease',
-                            letterSpacing: '-0.03em'
-                          }}
-                        >
-                          {artist.name}
-                          {hoveredArtistId === artist.id && <span style={{ marginLeft: '10px', fontSize: '10px', verticalAlign: 'middle', opacity: 0.5 }}>←</span>}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : contentX === 2 && contentY === 0 ? (
-                // (2,0) THE VAULT
-                <VaultCell />
-              ) : contentX === 0 && contentY === 1 ? (
-
-
-                // (0,1) LIVING GALLERY (Asymmetric Living Layout)
-                <GalleryCell x={x} y={y} size={size} isZoomedOut={isZoomedOut} />
-
-              ) : contentX === 1 && contentY === 1 ? (
-                // (1,1) SOCIALS & SHOP (Link List)
-                <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '350px', display: 'flex', flexDirection: 'column' }}>
-
-                  {/* LINKS */}
-                  {[
-                    { id: '01', label: 'INSTAGRAM', url: 'https://www.instagram.com/goodcmpany/' },
-                    { id: '02', label: 'SPOTIFY', url: 'https://open.spotify.com/intl-de/artist/6eCZz1kzSVLeQy2YRTEtO7' },
-                    { id: '03', label: 'SHOP (COMING SOON)', url: '#' }
-                  ].map((link, i) => (
-                    <a
-                      key={link.id}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        textDecoration: 'none',
-                        color: '#808080',
-                        fontFamily: 'monospace',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '20px 0',
-                        borderBottom: '1px solid #1a1a1a',
-                        transition: 'color 0.3s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#ececec';
-                        const num = e.currentTarget.querySelector('.num');
-                        if (num) num.textContent = '->';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = '#808080';
-                        const num = e.currentTarget.querySelector('.num');
-                        if (num) num.textContent = link.id;
-                      }}
-                    >
-                      <span className="num" style={{ width: '40px', letterSpacing: '0.1em', transition: 'all 0.2s ease' }}>{link.id}</span>
-                      <span style={{ letterSpacing: '0.2em' }}>// {link.label}</span>
-                    </a>
+            {contentX === 0 && contentY === 0 ? (
+              // 1. CENTER: HEADLINE
+              <div style={{ textAlign: 'center', userSelect: 'none' }}>
+                <h1 style={{ fontSize: '12vw', fontWeight: 800, textTransform: 'uppercase', lineHeight: 0.8, letterSpacing: '-0.05em', color: '#ececec' }}>Good<br />Company.</h1>
+              </div>
+            ) : contentX === 1 && contentY === 0 ? (
+              // 2. RIGHT: ROSTER (Asymmetric list)
+              <div style={{ textAlign: 'left', userSelect: 'none', pointerEvents: 'auto', width: '100%', paddingLeft: '15%' }}>
+                <p style={{ color: '#808080', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', marginBottom: '4vh', textTransform: 'uppercase' }}>[ Roster_01.idx ]</p>
+                <ul style={{ listStyle: 'none', padding: 0 }}>
+                  {ARTISTS.map(artist => (
+                    <li key={artist.id} style={{ marginBottom: '1vh' }}>
+                      <button
+                        onMouseEnter={() => setHoveredArtistId(artist.id)}
+                        onMouseLeave={() => setHoveredArtistId(null)}
+                        onClick={(e) => { e.stopPropagation(); setActiveArtist(artist); }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ececec',
+                          fontSize: '3vw',
+                          fontWeight: 400,
+                          fontFamily: 'monospace',
+                          cursor: 'pointer',
+                          textTransform: 'uppercase',
+                          opacity: hoveredArtistId ? (hoveredArtistId === artist.id ? 1 : 0.2) : 0.7,
+                          transition: 'opacity 0.4s ease',
+                          letterSpacing: '-0.03em'
+                        }}
+                      >
+                        {artist.name}
+                        {hoveredArtistId === artist.id && <span style={{ marginLeft: '10px', fontSize: '10px', verticalAlign: 'middle', opacity: 0.5 }}>←</span>}
+                      </button>
+                    </li>
                   ))}
+                </ul>
+              </div>
+            ) : contentX === 2 && contentY === 0 ? (
+              // (2,0) THE VAULT
+              <VaultCell />
+            ) : contentX === 0 && contentY === 1 ? (
 
-                  {/* FOOTER NOTE */}
-                  <div style={{ marginTop: '40px', fontSize: '10px', color: '#444', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
-                    FOR SERVICES & MANAGEMENT SEE <span
-                      style={{ color: '#888', borderBottom: '1px solid #888', cursor: 'pointer' }}
-                      onClick={() => {
-                        // Flawless Navigation: Slide -> Commit -> Reset
-                        if (size.w === 0 || isAnimating.current) return;
-                        isAnimating.current = true;
 
-                        // 1. Visual Slide (Move Camera Down)
-                        animate(y, y.get() - size.h, { ...PHYSICS }).then(() => {
-                          // 2. Logic Commit (Update Coordinate)
-                          currentPos.current.y += 1;
+              // (0,1) LIVING GALLERY (Asymmetric Living Layout)
+              <GalleryCell x={x} y={y} size={size} isZoomedOut={isZoomedOut} />
 
-                          // 3. Physical Reset (Teleport Camera Back to 0)
-                          // The grid re-renders around the new currentPos, so 0 is now the new center.
-                          y.jump(0);
+            ) : contentX === 1 && contentY === 1 ? (
+              // (1,1) SOCIALS & SHOP (Link List)
+              <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '350px', display: 'flex', flexDirection: 'column' }}>
 
-                          // 4. Force Render
-                          setTick(t => t + 1);
-                          isAnimating.current = false;
-                        });
-                      }}
-                    >[SIGNAL]</span>
-                  </div>
-
-                </div>
-              ) : contentX === 2 && contentY === 1 ? (
-                // (2,1) STUDIO (YouTube Embed)
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}>
-
-                  {/* VIDEO CONTAINER */}
-                  <div
+                {/* LINKS */}
+                {[
+                  { id: '01', label: 'INSTAGRAM', url: 'https://www.instagram.com/goodcmpany/' },
+                  { id: '02', label: 'SPOTIFY', url: 'https://open.spotify.com/intl-de/artist/6eCZz1kzSVLeQy2YRTEtO7' },
+                  { id: '03', label: 'SHOP (COMING SOON)', url: '#' }
+                ].map((link, i) => (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
-                      width: size.w < 768 ? '100%' : '95%',
-                      maxWidth: size.w < 768 ? 'none' : '800px',
-                      aspectRatio: '16/9',
-                      position: 'relative',
-                      border: '1px solid #1a1a1a',
-                      background: '#000',
-                      transition: 'border-color 0.3s ease',
-                      overflow: 'hidden' // Ensure image doesn't bleed
+                      textDecoration: 'none',
+                      color: '#808080',
+                      fontFamily: 'monospace',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '20px 0',
+                      borderBottom: '1px solid #1a1a1a',
+                      transition: 'color 0.3s ease'
                     }}
                     onMouseEnter={(e) => {
-                      if (activeStudioInstance !== instanceId) e.currentTarget.style.borderColor = '#333';
+                      e.currentTarget.style.color = '#ececec';
+                      const num = e.currentTarget.querySelector('.num');
+                      if (num) num.textContent = '->';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#1a1a1a';
+                      e.currentTarget.style.color = '#808080';
+                      const num = e.currentTarget.querySelector('.num');
+                      if (num) num.textContent = link.id;
                     }}
                   >
-                    {isZoomedOut ? (
-                      // STATIC THUMBNAIL (For Infinite Drag Optimization)
-                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                        <img
-                          src="https://img.youtube.com/vi/6zMS8ZRzQ1o/maxresdefault.jpg"
-                          alt="Studio Session"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }}
-                        />
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #ececec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid #ececec', marginLeft: '4px' }} />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      // INTERACTIVE IFRAME
-                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                        <iframe
-                          width="100%" height="100%"
-                          src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeStudioInstance === instanceId ? '&autoplay=1' : ''}`}
-                          title="Studio Session"
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          style={{
-                            width: '100%', height: '100%',
-                            filter: activeStudioInstance === instanceId ? 'none' : 'brightness(0.9)',
-                            transition: 'filter 0.5s ease',
-                            opacity: activeStudioInstance === instanceId ? 1 : 0.7,
-                            pointerEvents: activeStudioInstance === instanceId ? 'auto' : 'none'
-                          }}
-                        ></iframe>
+                    <span className="num" style={{ width: '40px', letterSpacing: '0.1em', transition: 'all 0.2s ease' }}>{link.id}</span>
+                    <span style={{ letterSpacing: '0.2em' }}>// {link.label}</span>
+                  </a>
+                ))}
 
-                        {/* OVERLAY (Click to Play) */}
-                        {activeStudioInstance !== instanceId && (
-                          <div
-                            onClick={() => setActiveStudioInstance(instanceId)}
-                            style={{
-                              position: 'absolute', inset: 0,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              cursor: 'pointer', zIndex: 10
-                            }}
-                          >
-                            <span style={{
-                              fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.1em',
-                              color: '#ececec', background: 'rgba(0,0,0,0.6)', padding: '5px 10px',
-                              border: '1px solid #333'
-                            }}>
-                              [ PLAY_STUDIO_SESSION ]
-                            </span>
-                          </div>
-                        )}
+                {/* FOOTER NOTE */}
+                <div style={{ marginTop: '40px', fontSize: '10px', color: '#444', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                  FOR SERVICES & MANAGEMENT SEE <span
+                    style={{ color: '#888', borderBottom: '1px solid #888', cursor: 'pointer' }}
+                    onClick={() => {
+                      // Flawless Navigation: Slide -> Commit -> Reset
+                      if (size.w === 0 || isAnimating.current) return;
+                      isAnimating.current = true;
 
-                        {/* STOP BUTTON (Physically removes iframe) */}
-                        {activeStudioInstance === instanceId && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setActiveStudioInstance(null); }}
-                            style={{
-                              position: 'absolute', top: '20px', right: '20px',
-                              background: 'rgba(0,0,0,0.8)', color: '#ececec', border: '1px solid #333',
-                              fontFamily: 'monospace', fontSize: '10px', padding: '5px 10px',
-                              cursor: 'pointer', zIndex: 20, letterSpacing: '0.1em'
-                            }}
-                          >
-                            [ STOP_SESSION ]
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                      // 1. Visual Slide (Move Camera Down)
+                      animate(y, y.get() - size.h, { ...PHYSICS }).then(() => {
+                        // 2. Logic Commit (Update Coordinate)
+                        currentPos.current.y += 1;
 
-                  {/* METADATA FOOTER */}
-                  <div style={{
-                    marginTop: '20px',
+                        // 3. Physical Reset (Teleport Camera Back to 0)
+                        // The grid re-renders around the new currentPos, so 0 is now the new center.
+                        y.jump(0);
+
+                        // 4. Force Render
+                        setTick(t => t + 1);
+                        isAnimating.current = false;
+                      });
+                    }}
+                  >[SIGNAL]</span>
+                </div>
+
+              </div>
+            ) : contentX === 2 && contentY === 1 ? (
+              // (2,1) STUDIO (YouTube Embed)
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'auto' }}>
+
+                {/* VIDEO CONTAINER */}
+                <div
+                  style={{
                     width: size.w < 768 ? '100%' : '95%',
                     maxWidth: size.w < 768 ? 'none' : '800px',
-                    padding: size.w < 768 ? '0 20px' : '0', // Add padding on mobile so text doesn't hit edge
-                    display: 'flex', justifyContent: 'space-between',
-                    fontFamily: 'monospace', fontSize: '10px', color: '#555',
-                    opacity: activeStudioInstance === instanceId ? 0.3 : 1,
-                    transition: 'opacity 0.5s ease'
-                  }}>
-                    <span>REC_DATE: 2024_SESSION_04</span>
-                    <span style={{ display: 'block' }}>LOCATION: STUDIO_HIDDEN</span>
-                    <span>FORMAT: 4K_RAW_GRAIN</span>
-                  </div>
-
-                </div>
-              ) : contentX === 0 && contentY === 2 ? (
-                // (0,2) DATES (Ticker/List)
-                <div style={{ width: '100%', padding: '0 10%', pointerEvents: 'auto' }}>
-                  <div style={{ borderBottom: '1px solid #333', paddingBottom: '10px', marginBottom: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '10px', color: '#808080' }}>
-                    <span style={{ textAlign: 'left' }}>DATE</span><span style={{ textAlign: 'center' }}>CITY</span><span style={{ textAlign: 'right' }}>VENUE</span>
-                  </div>
-                  {[
-                    { d: '22.03.26', c: 'BERLIN', v: 'KANTINE AM BERGHAIN' }
-                  ].map((date, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '14px', color: '#ececec', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(50,50,50,0.5)' }}>
-                      <span style={{ textAlign: 'left' }}>{date.d}</span>
-                      <span style={{ textAlign: 'center' }}>{date.c}</span>
-                      <span style={{ color: '#888', textAlign: 'right' }}>{date.v}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : contentX === 1 && contentY === 2 ? (
-                // (1,2) CONNECT / SIGNAL INTERFACE
-                <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '30px', fontFamily: 'monospace', color: '#ececec' }}>
-
-                  {/* HEADER */}
-                  <div style={{ fontSize: '10px', opacity: 0.5, letterSpacing: '0.2em' }}>
-                    SIGNAL STATUS: ACTIVE
-                  </div>
-
-                  {/* FORM CONTAINER */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-
-                    {/* INPUT 01: SOURCE_ID */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>SOURCE_ID:</label>
-                      <input
-                        type="email"
-                        placeholder="[ YOUR MAIL ]"
-                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#ececec', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
-                      />
-                    </div>
-
-                    {/* INPUT 02: ENCODE_MSG */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>ENCODE_MSG:</label>
-                      <input
-                        type="text"
-                        placeholder="[ YOUR MESSAGE ]"
-                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#888', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
-                        onFocus={(e) => e.target.style.color = '#ececec'}
-                        onBlur={(e) => e.target.style.color = '#888'}
-                      />
-                    </div>
-
-                    {/* SUBMIT ACTION */}
-                    <button
-                      style={{ marginTop: '20px', background: 'transparent', border: '1px solid #ececec', padding: '15px', color: '#ececec', cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', transition: 'all 0.2s ease' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#ececec'; e.currentTarget.style.color = '#0c0c0c'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ececec'; }}
-                    >
-                      [ SEND SIGNAL ]
-                    </button>
-
-                  </div>
-
-                  {/* BACKUP LINK */}
-                  <div style={{ marginTop: 'auto', textAlign: 'center', opacity: 0.3 }}>
-                    <a href="mailto:hello@goodcompany.com" style={{ color: '#ececec', textDecoration: 'none', fontSize: '10px' }}>hello@goodcompany.com</a>
-                  </div>
-
-                </div>
-              ) : (
-                // (2,2) IMPRINT & SONIC VOID
-                <div
-                  style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
-                  onClick={() => setAudioEnabled(true)}
+                    aspectRatio: '16/9',
+                    position: 'relative',
+                    border: '1px solid #1a1a1a',
+                    background: '#000',
+                    transition: 'border-color 0.3s ease',
+                    overflow: 'hidden' // Ensure image doesn't bleed
+                  }}
+                  onMouseEnter={(e) => {
+                    if (activeStudioInstance !== instanceId) e.currentTarget.style.borderColor = '#333';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#1a1a1a';
+                  }}
                 >
+                  {isZoomedOut ? (
+                    // STATIC THUMBNAIL (For Infinite Drag Optimization)
+                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                      <img
+                        src="https://img.youtube.com/vi/6zMS8ZRzQ1o/maxresdefault.jpg"
+                        alt="Studio Session"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }}
+                      />
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #ececec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid #ececec', marginLeft: '4px' }} />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    // INTERACTIVE IFRAME
+                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                      <iframe
+                        width="100%" height="100%"
+                        src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeStudioInstance === instanceId ? '&autoplay=1' : ''}`}
+                        title="Studio Session"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        style={{
+                          width: '100%', height: '100%',
+                          filter: activeStudioInstance === instanceId ? 'none' : 'brightness(0.9)',
+                          transition: 'filter 0.5s ease',
+                          opacity: activeStudioInstance === instanceId ? 1 : 0.7,
+                          pointerEvents: activeStudioInstance === instanceId ? 'auto' : 'none'
+                        }}
+                      ></iframe>
 
-                  {/* SONIC ELEMENT (Reactive Pulse) */}
-                  <div style={{ width: '100%', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.8, pointerEvents: 'none' }}>
-                    <svg width="400px" height="150px" viewBox="0 0 400 150" style={{ overflow: 'visible' }}>
-                      {/* Layer 1: Slow & Wide (Subtle) */}
-                      <motion.path
-                        d="M0 75 Q 100 65, 200 75 T 400 75 T 600 75"
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                        style={{ scaleY: waveScale, originY: '50%', opacity: 0.6 }}
-                        stroke="#ececec" strokeWidth="1" fill="none"
-                      />
-                      {/* Layer 2: Medium (Interference) */}
-                      <motion.path
-                        d="M0 75 Q 75 85, 150 75 T 300 75 T 450 75"
-                        animate={{ x: ["0%", "-50%"] }}
-                        transition={{ duration: 17, repeat: Infinity, ease: "linear" }}
-                        style={{ scaleY: waveScale, originY: '50%', opacity: 0.4 }}
-                        stroke="#ececec" strokeWidth="1" fill="none"
-                      />
-                      {/* Layer 3: Fast & Tight (Detail) */}
-                      <motion.path
-                        d="M0 75 Q 50 70, 100 75 T 200 75 T 300 75 T 400 75"
-                        animate={{ x: ["-50%", "0%"] }} // Counter-flow
-                        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                        style={{ scaleY: waveScale, originY: '50%', opacity: 0.3 }}
-                        stroke="#ececec" strokeWidth="1" fill="none"
-                      />
-                    </svg>
+                      {/* OVERLAY (Click to Play) */}
+                      {activeStudioInstance !== instanceId && (
+                        <div
+                          onClick={() => setActiveStudioInstance(instanceId)}
+                          style={{
+                            position: 'absolute', inset: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', zIndex: 10
+                          }}
+                        >
+                          <span style={{
+                            fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.1em',
+                            color: '#ececec', background: 'rgba(0,0,0,0.6)', padding: '5px 10px',
+                            border: '1px solid #333'
+                          }}>
+                            [ PLAY_STUDIO_SESSION ]
+                          </span>
+                        </div>
+                      )}
+
+                      {/* STOP BUTTON (Physically removes iframe) */}
+                      {activeStudioInstance === instanceId && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActiveStudioInstance(null); }}
+                          style={{
+                            position: 'absolute', top: '20px', right: '20px',
+                            background: 'rgba(0,0,0,0.8)', color: '#ececec', border: '1px solid #333',
+                            fontFamily: 'monospace', fontSize: '10px', padding: '5px 10px',
+                            cursor: 'pointer', zIndex: 20, letterSpacing: '0.1em'
+                          }}
+                        >
+                          [ STOP_SESSION ]
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* METADATA FOOTER */}
+                <div style={{
+                  marginTop: '20px',
+                  width: size.w < 768 ? '100%' : '95%',
+                  maxWidth: size.w < 768 ? 'none' : '800px',
+                  padding: size.w < 768 ? '0 20px' : '0', // Add padding on mobile so text doesn't hit edge
+                  display: 'flex', justifyContent: 'space-between',
+                  fontFamily: 'monospace', fontSize: '10px', color: '#555',
+                  opacity: activeStudioInstance === instanceId ? 0.3 : 1,
+                  transition: 'opacity 0.5s ease'
+                }}>
+                  <span>REC_DATE: 2024_SESSION_04</span>
+                  <span style={{ display: 'block' }}>LOCATION: STUDIO_HIDDEN</span>
+                  <span>FORMAT: 4K_RAW_GRAIN</span>
+                </div>
+
+              </div>
+            ) : contentX === 0 && contentY === 2 ? (
+              // (0,2) DATES (Ticker/List)
+              <div style={{ width: '100%', padding: '0 10%', pointerEvents: 'auto' }}>
+                <div style={{ borderBottom: '1px solid #333', paddingBottom: '10px', marginBottom: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '10px', color: '#808080' }}>
+                  <span style={{ textAlign: 'left' }}>DATE</span><span style={{ textAlign: 'center' }}>CITY</span><span style={{ textAlign: 'right' }}>VENUE</span>
+                </div>
+                {[
+                  { d: '22.03.26', c: 'BERLIN', v: 'KANTINE AM BERGHAIN' }
+                ].map((date, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', fontFamily: 'monospace', fontSize: '14px', color: '#ececec', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid rgba(50,50,50,0.5)' }}>
+                    <span style={{ textAlign: 'left' }}>{date.d}</span>
+                    <span style={{ textAlign: 'center' }}>{date.c}</span>
+                    <span style={{ color: '#888', textAlign: 'right' }}>{date.v}</span>
                   </div>
+                ))}
+              </div>
+            ) : contentX === 1 && contentY === 2 ? (
+              // (1,2) CONNECT / SIGNAL INTERFACE
+              <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '30px', fontFamily: 'monospace', color: '#ececec' }}>
 
-                  {/* SPOTIFY PLAYER */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '40px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '300px',
-                    height: '80px',
-                    opacity: audioEnabled ? 1 : 0,
-                    pointerEvents: audioEnabled ? 'auto' : 'none',
-                    transition: 'opacity 1s ease',
-                    filter: 'grayscale(1) invert(1) contrast(1.2)'
-                  }}>
-                    <iframe
-                      style={{ borderRadius: '12px' }}
-                      src="https://open.spotify.com/embed/artist/6eCZz1kzSVLeQy2YRTEtO7?utm_source=generator&theme=0"
-                      width="100%"
-                      height="100%"
-                      frameBorder="0"
-                      allowFullScreen
-                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                      loading="lazy"
+                {/* HEADER */}
+                <div style={{ fontSize: '10px', opacity: 0.5, letterSpacing: '0.2em' }}>
+                  SIGNAL STATUS: ACTIVE
+                </div>
+
+                {/* FORM CONTAINER */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+
+                  {/* INPUT 01: SOURCE_ID */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>SOURCE_ID:</label>
+                    <input
+                      type="email"
+                      placeholder="[ YOUR MAIL ]"
+                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#ececec', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
                     />
                   </div>
 
-                  {/* SYNC TRIGGER OVERLAY */}
-                  {!audioEnabled && (
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontFamily: 'monospace', fontSize: '10px', letterSpacing: '0.3em', color: '#ececec', cursor: 'pointer', opacity: 0.7 }}>
-                      [ CLICK TO SYNC AUDIO ]
-                    </div>
-                  )}
-
-                  {/* LEGAL FOOTER (Bottom Right) */}
-                  <div
-                    style={{ position: 'absolute', bottom: '40px', right: '40px', textAlign: 'right', fontFamily: 'monospace', fontSize: '10px', color: '#ececec', opacity: 0.1, transition: 'opacity 0.3s ease', cursor: 'default', textTransform: 'uppercase' }}
-                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.1'}
-                  >
-                    <div style={{ marginBottom: '10px' }}>
-                      <span style={{ cursor: 'pointer', marginRight: '15px' }}>LEGAL_REF // IMPRINT</span>
-                      <span style={{ cursor: 'pointer' }}>DATA_PROT // PRIVACY</span>
-                    </div>
-                    <div style={{ letterSpacing: '0.1em' }}>
-                      ©2026 GOOD COMPANY. ALL RIGHTS RESERVED.
-                    </div>
+                  {/* INPUT 02: ENCODE_MSG */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label style={{ fontSize: '12px', letterSpacing: '0.1em' }}>ENCODE_MSG:</label>
+                    <input
+                      type="text"
+                      placeholder="[ YOUR MESSAGE ]"
+                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #ececec', color: '#888', padding: '5px 0', outline: 'none', fontFamily: 'monospace', fontSize: '14px' }}
+                      onFocus={(e) => e.target.style.color = '#ececec'}
+                      onBlur={(e) => e.target.style.color = '#888'}
+                    />
                   </div>
 
+                  {/* SUBMIT ACTION */}
+                  <button
+                    style={{ marginTop: '20px', background: 'transparent', border: '1px solid #ececec', padding: '15px', color: '#ececec', cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', transition: 'all 0.2s ease' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#ececec'; e.currentTarget.style.color = '#0c0c0c'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ececec'; }}
+                  >
+                    [ SEND SIGNAL ]
+                  </button>
+
                 </div>
-              )}
-            </div>
+
+                {/* BACKUP LINK */}
+                <div style={{ marginTop: 'auto', textAlign: 'center', opacity: 0.3 }}>
+                  <a href="mailto:hello@goodcompany.com" style={{ color: '#ececec', textDecoration: 'none', fontSize: '10px' }}>hello@goodcompany.com</a>
+                </div>
+
+              </div>
+            ) : (
+              // (2,2) IMPRINT & SONIC VOID
+              <div
+                style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+                onClick={() => setAudioEnabled(true)}
+              >
+
+                {/* SONIC ELEMENT (Reactive Pulse) */}
+                <div style={{ width: '100%', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.8, pointerEvents: 'none' }}>
+                  <svg width="400px" height="150px" viewBox="0 0 400 150" style={{ overflow: 'visible' }}>
+                    {/* Layer 1: Slow & Wide (Subtle) */}
+                    <motion.path
+                      d="M0 75 Q 100 65, 200 75 T 400 75 T 600 75"
+                      animate={{ x: ["0%", "-50%"] }}
+                      transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                      style={{ scaleY: waveScale, originY: '50%', opacity: 0.6 }}
+                      stroke="#ececec" strokeWidth="1" fill="none"
+                    />
+                    {/* Layer 2: Medium (Interference) */}
+                    <motion.path
+                      d="M0 75 Q 75 85, 150 75 T 300 75 T 450 75"
+                      animate={{ x: ["0%", "-50%"] }}
+                      transition={{ duration: 17, repeat: Infinity, ease: "linear" }}
+                      style={{ scaleY: waveScale, originY: '50%', opacity: 0.4 }}
+                      stroke="#ececec" strokeWidth="1" fill="none"
+                    />
+                    {/* Layer 3: Fast & Tight (Detail) */}
+                    <motion.path
+                      d="M0 75 Q 50 70, 100 75 T 200 75 T 300 75 T 400 75"
+                      animate={{ x: ["-50%", "0%"] }} // Counter-flow
+                      transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                      style={{ scaleY: waveScale, originY: '50%', opacity: 0.3 }}
+                      stroke="#ececec" strokeWidth="1" fill="none"
+                    />
+                  </svg>
+                </div>
+
+                {/* SPOTIFY PLAYER */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '40px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '300px',
+                  height: '80px',
+                  opacity: audioEnabled ? 1 : 0,
+                  pointerEvents: audioEnabled ? 'auto' : 'none',
+                  transition: 'opacity 1s ease',
+                  filter: 'grayscale(1) invert(1) contrast(1.2)'
+                }}>
+                  <iframe
+                    style={{ borderRadius: '12px' }}
+                    src="https://open.spotify.com/embed/artist/6eCZz1kzSVLeQy2YRTEtO7?utm_source=generator&theme=0"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    allowFullScreen
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy"
+                  />
+                </div>
+
+                {/* SYNC TRIGGER OVERLAY */}
+                {!audioEnabled && (
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontFamily: 'monospace', fontSize: '10px', letterSpacing: '0.3em', color: '#ececec', cursor: 'pointer', opacity: 0.7 }}>
+                    [ CLICK TO SYNC AUDIO ]
+                  </div>
+                )}
+
+                {/* LEGAL FOOTER (Bottom Right) */}
+                <div
+                  style={{ position: 'absolute', bottom: '40px', right: '40px', textAlign: 'right', fontFamily: 'monospace', fontSize: '10px', color: '#ececec', opacity: 0.1, transition: 'opacity 0.3s ease', cursor: 'default', textTransform: 'uppercase' }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.1'}
+                >
+                  <div style={{ marginBottom: '10px' }}>
+                    <span style={{ cursor: 'pointer', marginRight: '15px' }}>LEGAL_REF // IMPRINT</span>
+                    <span style={{ cursor: 'pointer' }}>DATA_PROT // PRIVACY</span>
+                  </div>
+                  <div style={{ letterSpacing: '0.1em' }}>
+                    ©2026 GOOD COMPANY. ALL RIGHTS RESERVED.
+                  </div>
+                </div>
+
+              </div>
+            )}
           </div>
         );
       }
@@ -1033,129 +1094,46 @@ export default function Home() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0c0c0c', overflow: 'hidden', position: 'fixed', touchAction: 'none' }}>
-
-      {/* VIGNETTE (Enhanced) */}
-      <div className="vignette" style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(circle at center, transparent 40%, #0c0c0c 100%)', // Harder darkening at edges
-        zIndex: 10, opacity: 0.8
-      }} />
+      <div className="vignette" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', background: 'radial-gradient(circle, transparent 20%, rgba(0,0,0,0.6) 100%)', zIndex: 10 }} />
 
 
-      {/* OUTER CONTAINER: Scale/Zoom with Flex Centering */}
+
       <motion.div
         animate={{
           scale: isZoomedOut ? 0.25 : 1,
           borderRadius: isZoomedOut ? 20 : 0,
         }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        style={{
-          width: '100%',
-          height: '100%',
-          transformOrigin: 'center center',
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          rotateX: isZoomedOut ? 0 : tiltX,
-          rotateY: isZoomedOut ? 0 : tiltY,
-          scale: scaleEffect,
-          perspective: 1000
-        }}
+        transition={{ type: "spring", stiffness: 100, damping: 20 }}
+        style={{ width: '100%', height: '100%', transformOrigin: 'center center', position: 'relative' }}
       >
         {/* GLOBAL BACKGROUND TEXT (Static in Scale Wrapper) */}
         <BackgroundText />
 
-        {/* Z-INDEX LOCK: Event Blocker im Zoom-Modus */}
-        {isZoomedOut && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 50,
-              pointerEvents: 'none' // Lässt Drag durch, blockiert Clicks
-            }}
-          />
-        )}
-
-        {/* INNER CONTAINER: Drag/Modulo Only (No Scale) */}
         <motion.div
           drag
-          dragDirectionLock={!isZoomedOut && !isZoomingIn.current}
-          dragMomentum={false} // V2-STYLE: Dead object in zoom
-          dragTransition={
-            isZoomedOut
-              ? { power: 0.2, timeConstant: 200 }
-              : {
-                power: 0.8,
-                modifyTarget: (target) => {
-                  const s = sizeRef.current;
-                  if (s.w === 0) return target;
-                  // Snap to grid in Detail view only
-                  return Math.round(target / s.w) * s.w;
-                }
-              }
-          }
-          dragElastic={0}
-          dragConstraints={false}
-          onDragStart={(e) => {
+          dragDirectionLock={!isZoomedOut}
+          dragMomentum={isZoomedOut}
+          // Infinite Constraints when zoomed out (undefined = no limit)
+          dragConstraints={isZoomedOut ? undefined : undefined}
+          // Low friction for "Glide" feel
+          dragElastic={isZoomedOut ? 0.05 : 0}
+          dragTransition={isZoomedOut ? { power: 2, timeConstant: 1000 } : undefined}
+          onDragStart={() => {
             isDragging.current = true;
-            if (isZoomedOut) isMapDragging.current = true;
             isAnimating.current = false;
-            dragDistance.current = 0; // RESET V2-STYLE
             x.stop();
             y.stop();
           }}
-          onDrag={(e, info) => {
-            // V2-STYLE: Track total drag distance
-            if (isZoomedOut) {
-              dragDistance.current += Math.abs(info.delta.x) + Math.abs(info.delta.y);
-            }
-          }}
-          onDragEnd={(e, info) => {
-            handleDragEnd(e, info);
-            // Clear isDragging after 100ms
-            setTimeout(() => {
-              isDragging.current = false;
-              isMapDragging.current = false;
-            }, 100);
-          }}
-          onLayoutAnimationComplete={() => {
-            if (isZoomingIn.current) {
-              isZoomingIn.current = false;
-            }
-          }}
+          onDragEnd={handleDragEnd}
           style={{
             x, y,
-            width: size.w * 7,
-            height: size.h * 7,
-            position: 'relative',
+            width: '100%', height: '100%',
             touchAction: 'none',
             cursor: isZoomedOut ? 'grab' : 'auto'
           }}
           whileTap={{ cursor: isZoomedOut ? 'grabbing' : 'grabbing' }}
         >
-          {/* TRANSPARENT OVERLAY: Zoom-In Handler */}
-          {isZoomedOut && (
-            <motion.div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 999,
-                pointerEvents: 'auto',
-                cursor: 'pointer'
-              }}
-              onTap={(e) => {
-                // DRAG GUARD: Prevent zoom during/after drag
-                if (isDragging.current) return;
-                if (dragDistance.current > 5) return;
 
-                // Zoom In
-                setIsZoomedOut(false);
-                isZoomingIn.current = true;
-              }}
-            />
-          )}
 
           {cells}
         </motion.div>
