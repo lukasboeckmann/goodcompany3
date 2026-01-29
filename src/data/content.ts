@@ -1,3 +1,78 @@
+export const PROJECTS = [
+    {
+        id: '01',
+        title: 'SIGNAL',
+        category: 'Visual Identity',
+        src: 'https://cdn.dribbble.com/users/32512/screenshots/16287950/media/f57e296865df3c3c7344933a39e248b9.mp4',
+        type: 'video',
+        gridPos: { col: 0, row: 0 }
+    },
+    {
+        id: '02',
+        title: 'ROSTER',
+        category: 'Talent',
+        src: 'https://images.unsplash.com/photo-1542206395-9feb3edaa68d?q=80&w=2564&auto=format&fit=crop', // Stock High-Quality Portrait
+        type: 'image',
+        gridPos: { col: 1, row: 0 }
+    },
+    {
+        id: '03',
+        title: 'THE VAULT',
+        category: 'Archive',
+        src: '/images/gallery_02.jpg', // Placeholder for Vault cover
+        type: 'image',
+        gridPos: { col: 2, row: 0 }
+    },
+    {
+        id: '04',
+        title: 'GALLERY',
+        category: 'Collections',
+        src: 'https://cdn.dribbble.com/userupload/4468694/file/original-59754f9a76d85918737df90234796740.mp4',
+        type: 'video',
+        gridPos: { col: 0, row: 1 }
+    },
+    {
+        id: '05',
+        title: 'SOCIALS',
+        category: 'Connect',
+        src: 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=2670&auto=format&fit=crop',
+        type: 'image',
+        gridPos: { col: 1, row: 1 }
+    },
+    {
+        id: '06',
+        title: 'STUDIO',
+        category: 'Session',
+        src: 'https://www.youtube.com/embed/6zMS8ZRzQ1o', // YouTube behaves differently, handled in component
+        type: 'youtube',
+        gridPos: { col: 2, row: 1 }
+    },
+    {
+        id: '07',
+        title: 'DATES',
+        category: 'Live',
+        src: 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=2670&auto=format&fit=crop',
+        type: 'image',
+        gridPos: { col: 0, row: 2 }
+    },
+    {
+        id: '08',
+        title: 'SIGNAL',
+        category: 'Contact',
+        src: 'https://cdn.dribbble.com/users/125832/screenshots/11267812/media/6b9942a0378906967814b7858c440a44.mp4',
+        type: 'video',
+        gridPos: { col: 1, row: 2 }
+    },
+    {
+        id: '09',
+        title: 'IMPRINT',
+        category: 'Legal',
+        src: 'https://images.unsplash.com/photo-1488554378835-f7acf46e6c98?q=80&w=2671&auto=format&fit=crop',
+        type: 'image',
+        gridPos: { col: 2, row: 2 }
+    }
+];
+
 export const ARTISTS = [
     {
         id: 'veli',
