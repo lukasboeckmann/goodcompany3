@@ -6,11 +6,17 @@ import { motion, useMotionValue, animate, PanInfo, AnimatePresence, useTransform
 const PHYSICS = { type: "spring" as const, stiffness: 700, damping: 60, mass: 1, restDelta: 0.5 };
 
 // WRAPPED CELL COMPONENT
-const WrappedCell = ({ x, y, cx, cy, size, children }: { x: MotionValue<number>, y: MotionValue<number>, cx: number, cy: number, size: { w: number, h: number }, children: React.ReactNode }) => {
+const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
+  x: MotionValue<number>, y: MotionValue<number>, cx: number, cy: number, size: { w: number, h: number }, isZoomedOut: boolean, children: React.ReactNode
+}) => {
   const periodW = size.w * 3;
   const periodH = size.h * 3;
 
   const xOffset = useTransform(x, (v) => {
+    // ZOOM MODE: Rigid Grid (No Wrapping, Moves with Drag)
+    if (isZoomedOut) return cx * size.w;
+
+    // INFINITE MODE: Wrapping Logic (Compensates Drag to stay in view)
     if (!periodW) return 0;
     const base = cx * size.w;
     const total = base + v;
@@ -18,6 +24,10 @@ const WrappedCell = ({ x, y, cx, cy, size, children }: { x: MotionValue<number>,
   });
 
   const yOffset = useTransform(y, (v) => {
+    // ZOOM MODE: Rigid Grid
+    if (isZoomedOut) return cy * size.h;
+
+    // INFINITE MODE
     if (!periodH) return 0;
     const base = cy * size.h;
     const total = base + v;
@@ -571,6 +581,7 @@ export default function Home() {
             x={x} y={y}
             cx={i} cy={j}
             size={size}
+            isZoomedOut={isZoomedOut}
           >
             <div
               style={{
