@@ -474,8 +474,10 @@ export default function Home() {
 
   const currentPos = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
+  const isMapDragging = useRef(false); // Distinguish zoom-pan from click
   const isWarping = useRef(false);
   const isAnimating = useRef(false); // Delayed Warp Guard
+  const isZoomingIn = useRef(false); // Guard for re-entry stability
 
   // TILT & SCALE (Global Grid Deformation)
   // Must be declared before early returns.
@@ -497,6 +499,14 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // ZOOM RESET logic
+  useEffect(() => {
+    if (isZoomedOut) {
+      x.set(0);
+      y.set(0);
+    }
+  }, [isZoomedOut, x, y]);
+
   // 2. DELAYED WARP MONITOR
   // (REMOVED: Infinite Wrapping is now handled by WrappedCell via useTransform)
   // We keep the Resize listener above, but remove the manual "Jump" logic.
@@ -509,6 +519,9 @@ export default function Home() {
     isDragging.current = false;
     const s = sizeRef.current;
     if (s.w === 0) return;
+
+    // ZOOM MODE: Free Drag (Native Momentum), No Snapping
+    if (isZoomedOut) return;
 
     // CONF_1: MOMENTUM CONTROL (Power)
     // Reduce power to stop "infinite rolling" (0.1 - 0.3 range)
@@ -599,20 +612,32 @@ export default function Home() {
                 cursor: isZoomedOut ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
               }}
               onDoubleClick={(e) => {
-                if (isZoomedOut) {
-                  // Quick fix: Double click to center THIS cell? 
-                  // With continuous drag, "centering" means animating 'x' so this cell is at simple coords.
-                  // For now, simpler to just enter zoom.
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsZoomedOut(false);
+                // Prevent double click if we were dragging
+                if (isZoomedOut && !isMapDragging.current) {
+                  e.preventDefault(); e.stopPropagation();
+                  // CENTER LOGIC handled in Click
                 }
               }}
               onClickCapture={(e) => {
                 if (isZoomedOut) {
                   e.preventDefault(); e.stopPropagation();
+
+                  // 1. DRAG GUARD: If we were panning the map, DO NOT zoom in.
+                  if (isMapDragging.current) return;
+
+                  // 2. CENTER LOGIC: Jump to this cell
+                  // We want this cell (cx, cy) to be at the center (0,0) of the viewport.
+                  // In non-zoom mode, cell pos is relative to x/y.
+                  // x should be -cx * w, y should be -cy * h.
+                  const targetX = -contentX * size.w;
+                  const targetY = -contentY * size.h;
+
+                  x.set(targetX);
+                  y.set(targetY);
+
+                  // 3. LOCK GUARD: Set zooming flag to keep axis unlocked during transition
+                  isZoomingIn.current = true;
                   setIsZoomedOut(false);
-                  // Optional: Animate camera to center this cell
                 }
               }}
             >
@@ -1021,6 +1046,7 @@ export default function Home() {
           scale: isZoomedOut ? 0.25 : 1,
           borderRadius: isZoomedOut ? 20 : 0,
         }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         style={{
           width: '100%', height: '100%',
           transformOrigin: 'center center',
@@ -1036,16 +1062,30 @@ export default function Home() {
 
         <motion.div
           drag
-          dragDirectionLock={!isZoomedOut}
-          dragMomentum={false}
+          dragDirectionLock={!isZoomedOut && !isZoomingIn.current} // Unlock during zoom-out AND re-entry transition
+          dragMomentum={isZoomedOut}
           dragElastic={0}
           onDragStart={() => {
             isDragging.current = true;
+            if (isZoomedOut) isMapDragging.current = true;
             isAnimating.current = false;
             x.stop();
             y.stop();
           }}
-          onDragEnd={handleDragEnd}
+          onDragEnd={(e, info) => {
+            handleDragEnd(e, info);
+            // Short timeout to clear "dragging" status so clicks don't fire immediately after drag
+            setTimeout(() => {
+              isDragging.current = false;
+              isMapDragging.current = false;
+            }, 50);
+          }}
+          onLayoutAnimationComplete={() => {
+            // Re-enable Lock AFTER zoom-in finishes
+            if (isZoomingIn.current) {
+              isZoomingIn.current = false;
+            }
+          }}
           style={{
             x, y,
             width: '100%', height: '100%',
