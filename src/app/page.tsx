@@ -472,11 +472,59 @@ export default function Home() {
 
   // 3. HANDLERS
   // 3. HANDLERS
+  // 3. HANDLERS
   const handleDragEnd = (e: any, info: PanInfo) => {
     isDragging.current = false;
-    // INFINITE MOMENTUM: No Snapping.
-    // We let Framer Motion's dragMomentum take over.
-    // The WrappedCell logic handles the visuals.
+    const s = sizeRef.current;
+    if (s.w === 0) return;
+
+    // CONF_1: MOMENTUM CONTROL (Power)
+    // Reduce power to stop "infinite rolling" (0.1 - 0.3 range)
+    // Lower = stops faster.
+    const POWER = 0.2;
+
+    // CONF_2: PREDICT LANDING
+    const predX = x.get() + info.velocity.x * POWER;
+    const predY = y.get() + info.velocity.y * POWER;
+
+    // CONF_3: SAMPLE GRID (Smart Snapping)
+    // Snap to nearest cell size (s.w, s.h)
+    const snapX = Math.round(predX / s.w) * s.w;
+    const snapY = Math.round(predY / s.h) * s.h;
+
+    // CONF_4: PHYSICS (Heavy & Premium)
+    // stiffness 300 / damping 40 = Solid "Thud" feel.
+    // This provides the "High Drag Resistance" feel on stopping.
+    const SNAP_PHYSICS = { type: "spring", stiffness: 300, damping: 40, restDelta: 0.5 };
+
+    isAnimating.current = true;
+
+    Promise.all([
+      animate(x, snapX, SNAP_PHYSICS as any),
+      animate(y, snapY, SNAP_PHYSICS as any)
+    ]).then(() => {
+      // CONF_5: MODULO NORMALIZATION (The "Zeroing")
+      // Reset coordinates to prevent "Astronomical Pixels" without visual jump.
+      // Period is 3 * size.
+      const periodW = s.w * 3;
+      const periodH = s.h * 3;
+
+      const currentX = x.get();
+      const currentY = y.get();
+
+      // Normalize to period range if we drifted too far
+      if (Math.abs(currentX) > periodW) {
+        const remainderX = currentX % periodW;
+        x.jump(remainderX);
+      }
+
+      if (Math.abs(currentY) > periodH) {
+        const remainderY = currentY % periodH;
+        y.jump(remainderY);
+      }
+
+      isAnimating.current = false;
+    });
   };
 
   const cells = React.useMemo(() => {
@@ -944,18 +992,9 @@ export default function Home() {
 
         <motion.div
           drag
-          dragDirectionLock={false} // Use Free Drag always for Infinite Momentum
-          dragMomentum={true}
-          // Infinite Constraints
-          dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }} // Trick: set invalid constraints to make it "free"? 
-          // Actually, undefined constraints = free, BUT we want momentum. 
-          // If we set dragConstraints to undefined, it works.
-          // User said "Entferne alle harten dragConstraints".
-          dragConstraints={undefined}
-
-          // Smooth Momentum
-          dragElastic={0.05}
-          dragTransition={{ power: 0.8, timeConstant: 200 }}
+          dragDirectionLock={false}
+          dragMomentum={false}
+          dragElastic={0}
           onDragStart={() => {
             isDragging.current = true;
             isAnimating.current = false;
