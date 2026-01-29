@@ -54,8 +54,8 @@ const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
     <motion.div
       style={{
         position: 'absolute',
-        left: 0,
-        top: 0,
+        left: isZoomedOut ? cx * size.w : 0,
+        top: isZoomedOut ? cy * size.h : 0,
         width: size.w,
         height: size.h,
         x: xOffset,
@@ -598,12 +598,25 @@ export default function Home() {
         const instanceId = `${gridCopyIndex}-${cellIndex}`;
 
         c.push(
-          <WrappedCell
+          <div
             key={`${globalX}-${globalY}`}
-            x={x} y={y}
-            cx={i} cy={j}
-            size={size}
-            isZoomedOut={isZoomedOut}
+            style={{
+              position: 'absolute',
+              left: i * size.w,
+              top: j * size.h,
+              width: size.w,
+              height: size.h,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: (contentX === 2 && contentY === 1 && size.w < 768) ? '0' : '40px',
+              pointerEvents: isZoomedOut ? 'auto' : 'none',
+              willChange: 'transform',
+              border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
+              borderRadius: isZoomedOut ? '10px' : '0px',
+              transition: 'border 0.3s ease, border-radius 0.3s ease',
+              cursor: isZoomedOut ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
+            }}
           >
             {/* OVERLAY INTERCEPTOR (Zoom Mode Only) */}
             {isZoomedOut && (
@@ -1036,7 +1049,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-          </WrappedCell >
+          </div>
         );
       }
     }
@@ -1132,7 +1145,13 @@ export default function Home() {
           }}
           style={{
             x, y,
-            width: '100%', height: '100%',
+            width: size.w * 7,
+            height: size.h * 7,
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            marginLeft: -(size.w * 3.5),
+            marginTop: -(size.h * 3.5),
             touchAction: 'none',
             cursor: isZoomedOut ? 'grab' : 'auto'
           }}
