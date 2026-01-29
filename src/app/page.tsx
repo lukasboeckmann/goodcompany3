@@ -380,7 +380,7 @@ export default function Home() {
   const sizeRef = useRef({ w: 0, h: 0 });
   const [activeArtist, setActiveArtist] = useState<null | typeof ARTISTS[0]>(null);
   const [hoveredArtistId, setHoveredArtistId] = useState<string | null>(null); // Hover Spotlight
-  const [activeVideoInstance, setActiveVideoInstance] = useState<string | null>(null);
+  const [activeStudioInstance, setActiveStudioInstance] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   // 1A. ZOOM / BIRD'S EYE STATE
@@ -616,7 +616,12 @@ export default function Home() {
         const globalY = cy + j;
         const contentX = ((globalX % 3) + 3) % 3;
         const contentY = ((globalY % 3) + 3) % 3;
-        const uniqueId = `${globalX}-${globalY}`;
+
+        // GRID COPY INDEX: Map relative (i,j) to a 0-48 index (for a 7x7 buffer)
+        // i and j range from -3 to 3. (i+3) is 0-6.
+        const gridCopyIndex = (i + 3) * 7 + (j + 3);
+        const cellIndex = contentY * 3 + contentX;
+        const instanceId = `${gridCopyIndex}-${cellIndex}`;
 
         c.push(
           <div
@@ -831,7 +836,7 @@ export default function Home() {
                     overflow: 'hidden' // Ensure image doesn't bleed
                   }}
                   onMouseEnter={(e) => {
-                    if (activeVideoInstance !== uniqueId) e.currentTarget.style.borderColor = '#333';
+                    if (activeStudioInstance !== instanceId) e.currentTarget.style.borderColor = '#333';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = '#1a1a1a';
@@ -856,24 +861,24 @@ export default function Home() {
                     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                       <iframe
                         width="100%" height="100%"
-                        src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeVideoInstance === uniqueId ? '&autoplay=1' : ''}`}
+                        src={`https://www.youtube.com/embed/6zMS8ZRzQ1o?controls=0&rel=0&modestbranding=1${activeStudioInstance === instanceId ? '&autoplay=1' : ''}`}
                         title="Studio Session"
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                         style={{
                           width: '100%', height: '100%',
-                          filter: activeVideoInstance === uniqueId ? 'none' : 'brightness(0.9)',
+                          filter: activeStudioInstance === instanceId ? 'none' : 'brightness(0.9)',
                           transition: 'filter 0.5s ease',
-                          opacity: activeVideoInstance === uniqueId ? 1 : 0.7,
-                          pointerEvents: activeVideoInstance === uniqueId ? 'auto' : 'none'
+                          opacity: activeStudioInstance === instanceId ? 1 : 0.7,
+                          pointerEvents: activeStudioInstance === instanceId ? 'auto' : 'none'
                         }}
                       ></iframe>
 
                       {/* OVERLAY (Click to Play) */}
-                      {activeVideoInstance !== uniqueId && (
+                      {activeStudioInstance !== instanceId && (
                         <div
-                          onClick={() => setActiveVideoInstance(uniqueId)}
+                          onClick={() => setActiveStudioInstance(instanceId)}
                           style={{
                             position: 'absolute', inset: 0,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -889,6 +894,21 @@ export default function Home() {
                           </span>
                         </div>
                       )}
+
+                      {/* STOP BUTTON (Physically removes iframe) */}
+                      {activeStudioInstance === instanceId && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActiveStudioInstance(null); }}
+                          style={{
+                            position: 'absolute', top: '20px', right: '20px',
+                            background: 'rgba(0,0,0,0.8)', color: '#ececec', border: '1px solid #333',
+                            fontFamily: 'monospace', fontSize: '10px', padding: '5px 10px',
+                            cursor: 'pointer', zIndex: 20, letterSpacing: '0.1em'
+                          }}
+                        >
+                          [ STOP_SESSION ]
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -901,7 +921,7 @@ export default function Home() {
                   padding: size.w < 768 ? '0 20px' : '0', // Add padding on mobile so text doesn't hit edge
                   display: 'flex', justifyContent: 'space-between',
                   fontFamily: 'monospace', fontSize: '10px', color: '#555',
-                  opacity: activeVideoInstance === uniqueId ? 0.3 : 1,
+                  opacity: activeStudioInstance === instanceId ? 0.3 : 1,
                   transition: 'opacity 0.5s ease'
                 }}>
                   <span>REC_DATE: 2024_SESSION_04</span>
