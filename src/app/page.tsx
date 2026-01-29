@@ -24,6 +24,19 @@ const WrappedCell = ({ x, y, cx, cy, size, children }: { x: MotionValue<number>,
     return (((total + 1.5 * size.h) % periodH + periodH) % periodH - 1.5 * size.h) - v;
   });
 
+  // INNER PARALLAX (Phantom.land)
+  // Calculate the "visual position" on screen relative to center
+  // screenX = x + xOffset. (This is 0 when centered)
+  // We want the content to lag slightly behind the movement.
+  // If the cell moves RIGHT (screenX increases), content should move LEFT (negative).
+  const parallaxX = useTransform([x, xOffset], ([latestX, latestOffset]) => {
+    return ((latestX as number) + (latestOffset as number)) * -0.05; // 5% lag
+  });
+  const parallaxY = useTransform([y, yOffset], ([latestY, latestOffset]) => {
+    return ((latestY as number) + (latestOffset as number)) * -0.05;
+  });
+
+
   return (
     <motion.div
       style={{
@@ -40,9 +53,9 @@ const WrappedCell = ({ x, y, cx, cy, size, children }: { x: MotionValue<number>,
         pointerEvents: 'none'
       }}
     >
-      <div style={{ width: '100%', height: '100%', pointerEvents: 'auto' }}>
+      <motion.div style={{ width: '100%', height: '100%', pointerEvents: 'auto', x: parallaxX, y: parallaxY }}>
         {children}
-      </div>
+      </motion.div>
     </motion.div>
   );
 };
@@ -454,6 +467,15 @@ export default function Home() {
   const isWarping = useRef(false);
   const isAnimating = useRef(false); // Delayed Warp Guard
 
+  // TILT & SCALE (Global Grid Deformation)
+  // Must be declared before early returns.
+  const xVel = useVelocity(x);
+  const yVel = useVelocity(y);
+
+  const tiltX = useTransform(yVel, [-1000, 1000], [2, -2]);
+  const tiltY = useTransform(xVel, [-1000, 1000], [-2, 2]);
+  const scaleEffect = useTransform(useTransform(xVel, v => Math.abs(v)), [0, 2000], [1, 0.98]);
+
   useEffect(() => {
     const handleResize = () => {
       const s = { w: window.innerWidth * 0.9, h: window.innerHeight };
@@ -492,10 +514,9 @@ export default function Home() {
     const snapX = Math.round(predX / s.w) * s.w;
     const snapY = Math.round(predY / s.h) * s.h;
 
-    // CONF_4: PHYSICS (Heavy & Premium)
-    // stiffness 300 / damping 40 = Solid "Thud" feel.
-    // This provides the "High Drag Resistance" feel on stopping.
-    const SNAP_PHYSICS = { type: "spring", stiffness: 300, damping: 40, restDelta: 0.5 };
+    // CONF_4: PHYSICS (Heavy & Premium - Phantom.land Style)
+    // stiff 150 / damp 25 / mass 0.8 = Metallic, heavy, with subtle recoil.
+    const SNAP_PHYSICS = { type: "spring", stiffness: 150, damping: 25, mass: 0.8, restDelta: 0.01 };
 
     isAnimating.current = true;
 
@@ -975,8 +996,13 @@ export default function Home() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0c0c0c', overflow: 'hidden', position: 'fixed', touchAction: 'none' }}>
-      <div className="vignette" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', background: 'radial-gradient(circle, transparent 20%, rgba(0,0,0,0.6) 100%)', zIndex: 10 }} />
 
+      {/* VIGNETTE (Enhanced) */}
+      <div className="vignette" style={{
+        position: 'fixed', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(circle at center, transparent 40%, #0c0c0c 100%)', // Harder darkening at edges
+        zIndex: 10, opacity: 0.8
+      }} />
 
 
       <motion.div
@@ -984,15 +1010,22 @@ export default function Home() {
           scale: isZoomedOut ? 0.25 : 1,
           borderRadius: isZoomedOut ? 20 : 0,
         }}
-        transition={{ type: "spring", stiffness: 100, damping: 20 }}
-        style={{ width: '100%', height: '100%', transformOrigin: 'center center', position: 'relative' }}
+        style={{
+          width: '100%', height: '100%',
+          transformOrigin: 'center center',
+          position: 'relative',
+          rotateX: isZoomedOut ? 0 : tiltX,
+          rotateY: isZoomedOut ? 0 : tiltY,
+          scale: scaleEffect,
+          perspective: 1000
+        }}
       >
         {/* GLOBAL BACKGROUND TEXT (Static in Scale Wrapper) */}
         <BackgroundText />
 
         <motion.div
           drag
-          dragDirectionLock={false}
+          dragDirectionLock={!isZoomedOut}
           dragMomentum={false}
           dragElastic={0}
           onDragStart={() => {
