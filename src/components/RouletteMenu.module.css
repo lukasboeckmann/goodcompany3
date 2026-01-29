@@ -1,0 +1,39 @@
+.container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    /* Context for absolute positioning */
+    pointer-events: none;
+    /* Allow interaction if we add it later */
+}
+
+.wheelWrapper {
+    width: 90vw;
+    max-width: 200px;
+    /* Reduced from 400px to visually result in a smaller wheel */
+    aspect-ratio: 1 / 1;
+    /* Critical for stable rotation */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    /* circular touch area */
+    overflow: hidden;
+    /* crops content */
+    clip-path: circle(50%);
+    /* enforces circular hit-test area effectively */
+    pointer-events: auto;
+    /* Remove conflicting CSS animation */
+}
+
+.wheel {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* Removes SVG line-height issues */
+}
+
+/* Removed spinIntro keyframes as Framer Motion now controls rotation */

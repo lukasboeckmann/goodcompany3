@@ -1,0 +1,218 @@
+.horizontalScroller {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  width: 100%;
+  /* Better than 100vw to avoid scrollbar issues */
+  height: 100dvh;
+  /* Dynamic viewport height for mobile browsers */
+  scroll-behavior: smooth;
+
+  /* Hide scrollbar for app-feel */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE */
+}
+
+.horizontalScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.slide {
+  flex: 0 0 100%;
+  /* Ensure it takes full width of parent */
+  height: 100dvh;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  /* Force stop at each slide (snappier feel) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Specific styling for the logo in the first slide */
+.logo {
+  mix-blend-mode: screen;
+  /* Ensure logo scales nicely on mobile but doesn't overflow */
+  max-width: 80%;
+  height: auto;
+}
+
+/* Swipe Hint (Bottom Right) */
+.scrollHint {
+  position: absolute;
+  /* Radical low position */
+  bottom: 1rem;
+  right: 2rem;
+  width: 40px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  z-index: 100;
+  /* Nuclear z-index layer */
+  pointer-events: none;
+  /* Let touches pass through if needed */
+}
+
+.track {
+  width: 100%;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.3);
+  position: relative;
+  border-radius: 2px;
+  overflow: hidden;
+  /* Masking: Cuts off any "overshoot" of the tail/dot */
+}
+
+/* The Mover: Holds Dot + Tail together and handles the Path */
+.mover {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 0;
+  width: 0;
+  height: 0;
+  animation: moveSequence 5s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background-color: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  /* Leading edge */
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  animation: popIn 5s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+}
+
+.tail {
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.6);
+  position: absolute;
+  top: 50%;
+  left: 0;
+  /* Anchored to dot center */
+  transform: translateY(-50%);
+  transform-origin: left center;
+  /* Grows towards the right */
+  z-index: 1;
+  border-radius: 2px;
+  animation: tailElastic 5s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+}
+
+/* 1. MOVEMENT TIMELINE (5s loop) */
+@keyframes moveSequence {
+  0% {
+    right: 0;
+  }
+
+  50% {
+    right: 0;
+  }
+
+  /* WAIT Phase (2.5s) */
+  80% {
+    right: 100%;
+    opacity: 1;
+  }
+
+  /* MOVE Phase (1.5s - Same speed as before) */
+  100% {
+    right: 100%;
+    opacity: 0;
+  }
+
+  /* END Phase */
+}
+
+/* 2. DOT TIMELINE (Pop Up/Down) */
+@keyframes popIn {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+  }
+
+  5% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* Pop Up fast */
+  85% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* Stay visible */
+  100% {
+    transform: translate(-50%, -50%) scale(0);
+  }
+
+  /* Pop Out */
+}
+
+/* 3. TAIL TIMELINE (Elastic Grow/Shrink) */
+@keyframes tailElastic {
+  0% {
+    width: 0;
+  }
+
+  50% {
+    width: 0;
+  }
+
+  /* Zero length during wait */
+  60% {
+    width: 25px;
+  }
+
+  /* Accel: Grow tail */
+  80% {
+    width: 0;
+  }
+
+  /* Decel: Shrink back */
+  100% {
+    width: 0;
+  }
+}
+
+/* RESPONSIVE FADE WRAPPER */
+.imageFadeWrapper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Mobile: Straight fade (30%-45%). Starts high enough for faces, ends low enough for edge. */
+  mask-image: linear-gradient(to top, black 30%, transparent 45%);
+  -webkit-mask-image: linear-gradient(to top, black 30%, transparent 45%);
+}
+
+@media (min-width: 768px) {
+  .imageFadeWrapper {
+    /* Desktop: Revert to smoother fade. */
+    -webkit-mask-image: linear-gradient(to top, black 40%, transparent 95%);
+    mask-image: linear-gradient(to top, black 40%, transparent 95%);
+  }
+}
+
+/* Slide 3 Image Contain/Cover Logic */
+.slide3Image {
+  object-fit: fill;
+  /* Default (Mobile): Stretch to fill screen (distorted) */
+  object-position: center;
+}
+
+@media (min-width: 768px) {
+  .slide3Image {
+    object-fit: cover;
+    /* Desktop: Fill screen for immersion */
+  }
+}
