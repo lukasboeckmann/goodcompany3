@@ -473,6 +473,7 @@ export default function Home() {
   const [activeFilmIndex, setActiveFilmIndex] = useState(0);
 
   const currentPos = useRef({ x: 0, y: 0 });
+  const dragStartPos = useRef({ x: 0, y: 0 }); // Robust Deadzone Check
   const isDragging = useRef(false);
   const isMapDragging = useRef(false); // Distinguish zoom-pan from click
   const isWarping = useRef(false);
@@ -502,6 +503,9 @@ export default function Home() {
   // ZOOM RESET logic
   useEffect(() => {
     if (isZoomedOut) {
+      // KILL MOMENTUM IMMEDIATELY
+      x.stop();
+      y.stop();
       x.set(0);
       y.set(0);
     }
@@ -520,12 +524,17 @@ export default function Home() {
     const s = sizeRef.current;
     if (s.w === 0) return;
 
-    // ZOOM MODE: Free Drag (Native Momentum), No Snapping
-    if (isZoomedOut) return;
+    // STRICT GUARD: Im Zoom-Modus gibt es KEIN Snapping
+    if (isZoomedOut) {
+      // Timeout für Click-Prevention
+      setTimeout(() => {
+        isMapDragging.current = false;
+      }, 250);
+      return; // SOFORT BEENDEN - Keine weitere Logik
+    }
 
+    // --- AB HIER NUR NAHANSICHT ---
     // CONF_1: MOMENTUM CONTROL (Power)
-    // Reduce power to stop "infinite rolling" (0.1 - 0.3 range)
-    // Lower = stops faster.
     const POWER = 0.2;
 
     // CONF_2: PREDICT LANDING
@@ -533,12 +542,10 @@ export default function Home() {
     const predY = y.get() + info.velocity.y * POWER;
 
     // CONF_3: SAMPLE GRID (Smart Snapping)
-    // Snap to nearest cell size (s.w, s.h)
     const snapX = Math.round(predX / s.w) * s.w;
     const snapY = Math.round(predY / s.h) * s.h;
 
     // CONF_4: PHYSICS (Heavy & Premium - Phantom.land Style)
-    // stiff 150 / damp 25 / mass 0.8 = Metallic, heavy, with subtle recoil.
     const SNAP_PHYSICS = { type: "spring", stiffness: 150, damping: 25, mass: 0.8, restDelta: 0.01 };
 
     isAnimating.current = true;
@@ -548,15 +555,11 @@ export default function Home() {
       animate(y, snapY, SNAP_PHYSICS as any)
     ]).then(() => {
       // CONF_5: MODULO NORMALIZATION (The "Zeroing")
-      // Reset coordinates to prevent "Astronomical Pixels" without visual jump.
-      // Period is 3 * size.
       const periodW = s.w * 3;
       const periodH = s.h * 3;
-
       const currentX = x.get();
       const currentY = y.get();
 
-      // Normalize to period range if we drifted too far
       if (Math.abs(currentX) > periodW) {
         const remainderX = currentX % periodW;
         x.jump(remainderX);
@@ -596,6 +599,16 @@ export default function Home() {
             size={size}
             isZoomedOut={isZoomedOut}
           >
+            {/* OVERLAY INTERCEPTOR (Zoom Mode Only) */}
+            {isZoomedOut && (
+              <div
+                style={{ position: 'absolute', inset: 0, zIndex: 100, pointerEvents: 'auto', cursor: 'grab' }}
+                onPointerDown={(e) => {
+                  dragStartPos.current = { x: e.clientX, y: e.clientY };
+                }}
+              />
+            )}
+
             <div
               style={{
                 width: '100%',
@@ -604,38 +617,30 @@ export default function Home() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: (contentX === 2 && contentY === 1 && size.w < 768) ? '0' : '40px',
-                pointerEvents: isZoomedOut ? 'auto' : 'none',
-                willChange: 'transform',
+                pointerEvents: isZoomedOut ? 'none' : 'auto',
                 border: isZoomedOut ? '1px solid rgba(255,255,255,0.15)' : 'none',
                 borderRadius: isZoomedOut ? '10px' : '0px',
                 transition: 'border 0.3s ease, border-radius 0.3s ease',
-                cursor: isZoomedOut ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
-              }}
-              onDoubleClick={(e) => {
-                // Prevent double click if we were dragging
-                if (isZoomedOut && !isMapDragging.current) {
-                  e.preventDefault(); e.stopPropagation();
-                  // CENTER LOGIC handled in Click
-                }
               }}
               onClickCapture={(e) => {
                 if (isZoomedOut) {
                   e.preventDefault(); e.stopPropagation();
 
-                  // 1. DRAG GUARD: If we were panning the map, DO NOT zoom in.
+                  // 1. DEADZONE GUARD: Strict 5px Threshold
+                  const dist = Math.hypot(e.clientX - dragStartPos.current.x, e.clientY - dragStartPos.current.y);
+                  if (dist > 5) return; // If moved more than 5px, it's a drag.
+
+                  // 2. DRAG GUARD: Flag Check
                   if (isMapDragging.current) return;
 
-                  // 2. CENTER LOGIC: Jump to this cell
-                  // We want this cell (cx, cy) to be at the center (0,0) of the viewport.
-                  // In non-zoom mode, cell pos is relative to x/y.
-                  // x should be -cx * w, y should be -cy * h.
+                  // 3. ZOOM IN LOGIC (Clean Tap Only)
                   const targetX = -contentX * size.w;
                   const targetY = -contentY * size.h;
 
                   x.set(targetX);
                   y.set(targetY);
 
-                  // 3. LOCK GUARD: Set zooming flag to keep axis unlocked during transition
+                  // 4. ENTER DETAIL MODE
                   isZoomingIn.current = true;
                   setIsZoomedOut(false);
                 }
@@ -1021,7 +1026,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-          </WrappedCell>
+          </WrappedCell >
         );
       }
     }
@@ -1062,9 +1067,11 @@ export default function Home() {
 
         <motion.div
           drag
-          dragDirectionLock={!isZoomedOut && !isZoomingIn.current} // Unlock during zoom-out AND re-entry transition
+          dragDirectionLock={isZoomedOut ? false : (!isZoomedOut && !isZoomingIn.current)} // STRICT: Unlock immediately on zoom out
           dragMomentum={isZoomedOut}
+          dragTransition={isZoomedOut ? { power: 0.2, timeConstant: 200 } : undefined} // DRY SLIDE for Map
           dragElastic={0}
+          dragConstraints={isZoomedOut ? false : undefined} // STRICT: No constraints in map mode
           onDragStart={() => {
             isDragging.current = true;
             if (isZoomedOut) isMapDragging.current = true;
@@ -1078,7 +1085,7 @@ export default function Home() {
             setTimeout(() => {
               isDragging.current = false;
               isMapDragging.current = false;
-            }, 50);
+            }, 250); // Increased to 250ms for safety
           }}
           onLayoutAnimationComplete={() => {
             // Re-enable Lock AFTER zoom-in finishes
