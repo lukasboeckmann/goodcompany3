@@ -625,33 +625,6 @@ export default function Home() {
                 onPointerDown={(e) => {
                   dragStartPos.current = { x: e.clientX, y: e.clientY };
                 }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-
-                  // V2-STYLE: Anti-Auto-Zoom Riegel
-                  if (dragDistance.current > 5) return;
-
-                  // 1. DEADZONE: < 5px = Tap
-                  const dist = Math.hypot(
-                    e.clientX - dragStartPos.current.x,
-                    e.clientY - dragStartPos.current.y
-                  );
-                  if (dist >= 5) return; // Was a drag
-
-                  // 2. DRAG-FLAG Check
-                  if (isMapDragging.current) return;
-
-                  // 3. ZOOM-IN: Center this cell
-                  const targetX = -contentX * size.w;
-                  const targetY = -contentY * size.h;
-                  x.set(targetX);
-                  y.set(targetY);
-
-                  // 4. Enter Detail Mode
-                  isZoomingIn.current = true;
-                  setIsZoomedOut(false);
-                }}
               />
             )}
 
@@ -1069,7 +1042,7 @@ export default function Home() {
       }} />
 
 
-      {/* OUTER CONTAINER: Scale/Zoom Only (No Drag) */}
+      {/* OUTER CONTAINER: Scale/Zoom with Flex Centering */}
       <motion.div
         animate={{
           scale: isZoomedOut ? 0.25 : 1,
@@ -1077,9 +1050,13 @@ export default function Home() {
         }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          width: '100%', height: '100%',
+          width: '100%',
+          height: '100%',
           transformOrigin: 'center center',
           position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           rotateX: isZoomedOut ? 0 : tiltX,
           rotateY: isZoomedOut ? 0 : tiltY,
           scale: scaleEffect,
@@ -1137,6 +1114,11 @@ export default function Home() {
           }}
           onDragEnd={(e, info) => {
             handleDragEnd(e, info);
+            // Clear isDragging after 100ms
+            setTimeout(() => {
+              isDragging.current = false;
+              isMapDragging.current = false;
+            }, 100);
           }}
           onLayoutAnimationComplete={() => {
             if (isZoomingIn.current) {
@@ -1147,16 +1129,34 @@ export default function Home() {
             x, y,
             width: size.w * 7,
             height: size.h * 7,
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            marginLeft: -(size.w * 3.5),
-            marginTop: -(size.h * 3.5),
+            position: 'relative',
             touchAction: 'none',
             cursor: isZoomedOut ? 'grab' : 'auto'
           }}
           whileTap={{ cursor: isZoomedOut ? 'grabbing' : 'grabbing' }}
         >
+          {/* TRANSPARENT OVERLAY: Zoom-In Handler */}
+          {isZoomedOut && (
+            <motion.div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 999,
+                pointerEvents: 'auto',
+                cursor: 'pointer'
+              }}
+              onTap={(e) => {
+                // DRAG GUARD: Prevent zoom during/after drag
+                if (isDragging.current) return;
+                if (dragDistance.current > 5) return;
+
+                // Zoom In
+                setIsZoomedOut(false);
+                isZoomingIn.current = true;
+              }}
+            />
+          )}
+
           {cells}
         </motion.div>
       </motion.div>
