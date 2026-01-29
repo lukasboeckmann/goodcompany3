@@ -13,14 +13,12 @@ const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
   const periodH = size.h * 3;
 
   const xOffset = useTransform(x, (v) => {
-    // ZOOM MODE: Grid moves with drag, cells offset from center
     if (isZoomedOut) {
-      // Position cells relative to viewport center
-      // cx=0 should be left, cx=1 center, cx=2 right
-      return (cx - 1) * size.w; // Center grid on cx=1
+      // In zoom mode: NO offset, cells positioned by i/j in parent
+      return 0;
     }
 
-    // INFINITE MODE: Wrapping Logic (Compensates Drag to stay in view)
+    // INFINITE MODE: Wrapping Logic
     if (!periodW) return 0;
     const base = cx * size.w;
     const total = base + v;
@@ -28,9 +26,8 @@ const WrappedCell = ({ x, y, cx, cy, size, isZoomedOut, children }: {
   });
 
   const yOffset = useTransform(y, (v) => {
-    // ZOOM MODE: Grid moves with drag
     if (isZoomedOut) {
-      return (cy - 1) * size.h; // Center grid on cy=1
+      return 0;
     }
 
     // INFINITE MODE
@@ -479,12 +476,13 @@ export default function Home() {
   const [activeFilmIndex, setActiveFilmIndex] = useState(0);
 
   const currentPos = useRef({ x: 0, y: 0 });
-  const dragStartPos = useRef({ x: 0, y: 0 }); // Robust Deadzone Check
+  const dragStartPos = useRef({ x: 0, y: 0 }); // For Deadzone Check
+  const dragDistance = useRef(0); // V2-STYLE: Anti-Auto-Zoom
   const isDragging = useRef(false);
-  const isMapDragging = useRef(false); // Distinguish zoom-pan from click
+  const isMapDragging = useRef(false);
   const isWarping = useRef(false);
-  const isAnimating = useRef(false); // Delayed Warp Guard
-  const isZoomingIn = useRef(false); // Guard for re-entry stability
+  const isAnimating = useRef(false);
+  const isZoomingIn = useRef(false);
 
   // TILT & SCALE (Global Grid Deformation)
   // Must be declared before early returns.
@@ -584,22 +582,24 @@ export default function Home() {
     if (size.w === 0) return [];
 
     const c = [];
-    const cx = 0; // Fixed center for calculation logic if needed, but we loop 0..2
-    const cy = 0;
+    const cx = currentPos.current.x;
+    const cy = currentPos.current.y;
 
-    // Loop 0..2 for 3x3 Grid
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        // CONTENT INDICES
-        const contentX = i;
-        const contentY = j;
+    // V2-STYLE: 7x7 Rendering (-3 to 3)
+    for (let i = -3; i <= 3; i++) {
+      for (let j = -3; j <= 3; j++) {
+        const globalX = cx + i;
+        const globalY = cy + j;
+        const contentX = ((globalX % 3) + 3) % 3;
+        const contentY = ((globalY % 3) + 3) % 3;
 
-        // Instance ID (Simplified for Wrapped Logic)
-        const instanceId = `${i}-${j}`;
+        const gridCopyIndex = (i + 3) * 7 + (j + 3);
+        const cellIndex = contentY * 3 + contentX;
+        const instanceId = `${gridCopyIndex}-${cellIndex}`;
 
         c.push(
           <WrappedCell
-            key={`${i}-${j}`}
+            key={`${globalX}-${globalY}`}
             x={x} y={y}
             cx={i} cy={j}
             size={size}
@@ -615,6 +615,9 @@ export default function Home() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+
+                  // V2-STYLE: Anti-Auto-Zoom Riegel
+                  if (dragDistance.current > 5) return;
 
                   // 1. DEADZONE: < 5px = Tap
                   const dist = Math.hypot(
@@ -1089,7 +1092,7 @@ export default function Home() {
         <motion.div
           drag
           dragDirectionLock={!isZoomedOut && !isZoomingIn.current}
-          dragMomentum={isZoomedOut}
+          dragMomentum={false} // V2-STYLE: Dead object in zoom
           dragTransition={
             isZoomedOut
               ? { power: 0.2, timeConstant: 200 }
@@ -1105,12 +1108,19 @@ export default function Home() {
           }
           dragElastic={0}
           dragConstraints={false}
-          onDragStart={() => {
+          onDragStart={(e) => {
             isDragging.current = true;
             if (isZoomedOut) isMapDragging.current = true;
             isAnimating.current = false;
+            dragDistance.current = 0; // RESET V2-STYLE
             x.stop();
             y.stop();
+          }}
+          onDrag={(e, info) => {
+            // V2-STYLE: Track total drag distance
+            if (isZoomedOut) {
+              dragDistance.current += Math.abs(info.delta.x) + Math.abs(info.delta.y);
+            }
           }}
           onDragEnd={(e, info) => {
             handleDragEnd(e, info);
