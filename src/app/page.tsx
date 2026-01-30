@@ -1,29 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, animate } from 'framer-motion';
 import useWindowSize from '@/hooks/useWindowSize';
 import GridItem from '@/components/grid/GridItem';
-// import BackgroundText from '@/components/layout/BackgroundText'; // Erst mal auskommentiert lassen zur Sicherheit
+import BackgroundText from '@/components/layout/BackgroundText';
+import { GalleryCell } from '@/components/grid/GalleryCell';
+import { VaultCell } from '@/components/grid/VaultCell';
 
-// Deine echten Komponenten wieder aktivieren!
-/* import Headline from '@/components/content/Headline';
+// Authentic Components Imports
+import Headline from '@/components/content/Headline';
 import Roster from '@/components/content/Roster';
-...
-*/
+import Socials from '@/components/content/Socials';
+import Studio from '@/components/content/Studio';
+import Dates from '@/components/content/Dates';
+import Signal from '@/components/content/Signal';
+import Imprint from '@/components/content/Imprint';
 
 export default function Home() {
   const { width, height } = useWindowSize();
   const [isOverview, setIsOverview] = useState(false);
 
-  // Start bei 0, damit wir mittig starten (Dank der Mathe in GridItem)
+  // --- KONFIGURATION UNENDLICHE TAPETE ---
+  // Range 3 = Wir rendern von -3 bis +3 (7x7 Grid = 49 Kacheln)
+  // Das reicht aus, um bei Zoom 0.25 den ganzen Screen zu füllen.
+  const RANGE = 3;
+  const renderIndices = Array.from({ length: RANGE * 2 + 1 }, (_, i) => i - RANGE); // z.B. [-3, -2, -1, 0, 1, 2, 3]
+  const TOTAL_COLS = renderIndices.length;
+  const TOTAL_ROWS = renderIndices.length;
+
+  // Global Motion Values - Start bei 0 (Mitte)
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  // 1. DRAG LOGIK (Original Code für das "Gefühl")
+  // Interaction State
+  const [activeArtist, setActiveArtist] = useState<any | null>(null);
+  const [activeStudioInstance, setActiveStudioInstance] = useState<string | null>(null);
+
+  // --- PHYSIK LOGIK ---
   const onPan = (e: any, info: any) => {
-    x.set(x.get() + info.delta.x);
-    y.set(y.get() + info.delta.y);
+    // Im Overview-Modus (Zoom) bewegen wir uns schneller (Faktor 2.5),
+    // damit es sich nicht zäh anfühlt.
+    const factor = isOverview ? 2.5 : 1;
+    x.set(x.get() + info.delta.x * factor);
+    y.set(y.get() + info.delta.y * factor);
   };
 
   const onPanEnd = (e: any, info: any) => {
@@ -31,11 +51,12 @@ export default function Home() {
     const vY = info.velocity.y;
 
     if (isOverview) {
-      // Im Overview Modus: Freies Gleiten (Decay)
-      animate(x, x.get() + vX * 0.5, { type: 'decay', velocity: vX, power: 0.8 });
-      animate(y, y.get() + vY * 0.5, { type: 'decay', velocity: vY, power: 0.8 });
+      // Flugmodus: Weiches Ausgleiten mit Faktor-Korrektur
+      const factor = 2.5;
+      animate(x, x.get() + (vX * factor) * 0.5, { type: 'decay', velocity: vX * factor, power: 0.8 });
+      animate(y, y.get() + (vY * factor) * 0.5, { type: 'decay', velocity: vY * factor, power: 0.8 });
     } else {
-      // Im Normal Modus: SNAPPING (Einrasten auf das Grid)
+      // Detailmodus: Einrasten (Snapping) auf die Kachel
       const pX = x.get() + vX * 0.2;
       const pY = y.get() + vY * 0.2;
       const snapX = Math.round(pX / width) * width;
@@ -46,78 +67,46 @@ export default function Home() {
     }
   };
 
-  if (!width) return <div style={{ background: 'black', color: 'white' }}>Loading...</div>;
+  const handleNavigate = (direction: 'up' | 'down') => {
+    // Navigation Logik (z.B. für Socials Link)
+    if (direction === 'down') {
+      animate(y, y.get() - height, { type: 'spring', stiffness: 200, damping: 25 });
+    }
+  };
+
+  // Safety Check: Keine Breite -> Ladescreen (verhindert Glitches)
+  if (!width) return <div className="fixed inset-0 bg-[#0c0c0c]" />;
 
   return (
-    <main style={{
-      position: 'fixed',
-      inset: 0,
-      backgroundColor: '#0c0c0c',
-      color: '#ececec',
-      overflow: 'hidden',
-      touchAction: 'none',
-      width: '100vw',
-      height: '100vh'
-    }}>
+    <main
+      className="fixed inset-0 bg-[#0c0c0c] text-[#ececec] overflow-hidden font-mono"
+      // Inline Styles, um Browser-Verhalten sicher zu killen
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+    >
 
-      {/* Debug Info (Kannst du später löschen) */}
-      <div style={{ position: 'fixed', top: 10, left: 10, zIndex: 9999, color: 'lime', pointerEvents: 'none' }}>
-        Version: FINAL FIX<br />
-        Zoom: {isOverview ? 'ON' : 'OFF'}
-      </div>
-
+      {/* Global Container with Pan Handler */}
       <motion.div
-        // 1. CSS FIX: select-none verhindert das Markieren
-        // cursor-grab zeigt die Hand
-        className="relative w-full h-full select-none cursor-grab active:cursor-grabbing"
-        style={{
-          transformOrigin: 'center center',
-          touchAction: 'none' // Verhindert Browser-Scrollen auf Mobile
-        }}
-
-        // 2. STOP FIX: Sofort alte Animationen killen, wenn man anfasst
-        onPanStart={() => {
-          x.stop();
-          y.stop();
-        }}
-
-        // 3. DRAG FIX: Deine Pan-Funktion (mit dem Faktor-Fix von vorhin integriert)
-        onPan={(e, info) => {
-          // Im Overview (0.25) müssen wir die Mausbewegung verstärken, 
-          // sonst fühlt es sich an wie auf Glatteis.
-          const factor = isOverview ? 2.5 : 1;
-
-          x.set(x.get() + (info.delta.x * factor));
-          y.set(y.get() + (info.delta.y * factor));
-        }}
-
-        onPanEnd={(e, info) => {
-          const vX = info.velocity.x;
-          const vY = info.velocity.y;
-
-          if (isOverview) {
-            // Weiches Gleiten im Overview
-            animate(x, x.get() + vX * 0.5, { type: 'decay', velocity: vX, power: 0.8 });
-            animate(y, y.get() + vY * 0.5, { type: 'decay', velocity: vY, power: 0.8 });
-          } else {
-            // Hartes Einrasten im Detail-View
-            const pX = x.get() + vX * 0.2;
-            const pY = y.get() + vY * 0.2;
-            const snapX = Math.round(pX / width) * width;
-            const snapY = Math.round(pY / height) * height;
-
-            animate(x, snapX, { type: 'spring', stiffness: 200, damping: 25 });
-            animate(y, snapY, { type: 'spring', stiffness: 200, damping: 25 });
-          }
-        }}
-
+        className="relative w-full h-full cursor-grab active:cursor-grabbing"
+        style={{ transformOrigin: 'center center' }}
+        onPanStart={() => { x.stop(); y.stop(); }} // Stoppt Zittern beim Greifen
+        onPan={onPan}
+        onPanEnd={onPanEnd}
         animate={{ scale: isOverview ? 0.25 : 1 }}
         transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
       >
-        {/* <BackgroundText /> */}
+        <BackgroundText />
 
-        {[0, 1, 2].map(row =>
-          [0, 1, 2].map(col => {
+        {/* --- INFINITE GRID RENDERER --- */}
+        {renderIndices.map(row =>
+          renderIndices.map(col => {
+            const instanceId = `${row}-${col}`;
+
+            // WARP MATHEMATIK:
+            // Wir wandeln die unendlichen Koordinaten (z.B. -3, 7, 99) 
+            // immer sauber in 0, 1, 2 um, damit sich der Inhalt wiederholt.
+            const contentRow = ((row % 3) + 3) % 3;
+            const contentCol = ((col % 3) + 3) % 3;
+
             return (
               <GridItem
                 key={`${row}-${col}`}
@@ -127,104 +116,84 @@ export default function Home() {
                 y={y}
                 width={width}
                 height={height}
+                // Übergabe der Welt-Größe an das Item
+                totalGridCols={TOTAL_COLS}
+                totalGridRows={TOTAL_ROWS}
                 isZoomedOut={isOverview}
-                // Doppelklick für Zoom
                 onDoubleClick={() => setIsOverview(!isOverview)}
               >
-                {/* HIER JETZT DEINE ECHTEN KOMPONENTEN WIEDER REIN!
-                   Für den Test lasse ich die Boxen noch kurz drin, 
-                   aber du kannst das if/else Mapping hier wieder einfügen.
-                */}
-                <div style={{
-                  width: '100%', height: '100%',
-                  border: '1px solid #333',
-                  backgroundColor: `hsl(${(row * 3 + col) * 40}, 50%, 10%)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '3rem', fontWeight: 900, color: '#333'
-                }}>
-                  {row}-{col}
+                <div className={`w-full h-full relative overflow-hidden flex items-center justify-center bg-[#0c0c0c] border border-white/5 ${isOverview ? 'pointer-events-none' : 'pointer-events-auto'}`}>
+
+                  {/* COMPONENT MAPPING (Original Logic) */}
+                  {(() => {
+                    // (0,0) HEADLINE
+                    if (contentCol === 0 && contentRow === 0) return <Headline />;
+
+                    // (1,0) ROSTER
+                    if (contentCol === 1 && contentRow === 0) return <Roster setActiveArtist={setActiveArtist} />;
+
+                    // (2,0) VAULT
+                    if (contentCol === 2 && contentRow === 0) return <VaultCell />;
+
+                    // (0,1) GALLERY
+                    if (contentCol === 0 && contentRow === 1) return <GalleryCell x={x} y={y} size={{ w: width, h: height }} isZoomedOut={isOverview} />;
+
+                    // (1,1) SOCIALS (Center)
+                    if (contentCol === 1 && contentRow === 1) return <Socials onNavigate={handleNavigate} />;
+
+                    // (2,1) STUDIO
+                    if (contentCol === 2 && contentRow === 1) return <Studio activeStudioInstance={activeStudioInstance} setActiveStudioInstance={setActiveStudioInstance} instanceId={instanceId} isZoomedOut={isOverview} />;
+
+                    // (0,2) DATES
+                    if (contentCol === 0 && contentRow === 2) return <Dates />;
+
+                    // (1,2) SIGNAL
+                    if (contentCol === 1 && contentRow === 2) return <Signal />;
+
+                    // (2,2) IMPRINT
+                    if (contentCol === 2 && contentRow === 2) return <Imprint />;
+
+                    return null;
+                  })()}
+
                 </div>
               </GridItem>
             )
           })
         )}
-        <motion.div
-          // CLASSNAME FIX: Wir nutzen Tailwind Klassen, aber verlassen uns nicht nur auf sie.
-          className="relative w-full h-full cursor-grab active:cursor-grabbing"
 
-          // STYLE FIX (DAS IST DER SCHLÜSSEL!):
-          style={{
-            transformOrigin: 'center center',
-            // Dies hier verbietet dem Browser das Scrollen/Wackeln
-            touchAction: 'none',
-            // Verhindert das Markieren von Text beim Ziehen
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-          }}
-
-          // EVENT FIX:
-          onPanEnd={(e, info) => {
-            const vX = info.velocity.x;
-            const vY = info.velocity.y;
-
-            if (isOverview) {
-              // FLUMMI FIX: Wir verstärken auch den Schwung (Velocity) mit dem Faktor!
-              // Sonst bremst es beim Loslassen abrupt ab.
-              const factor = 2.5;
-
-              animate(x, x.get() + (vX * factor) * 0.5, {
-                type: 'decay',
-                velocity: vX * factor, // <--- HIER ist der Trick!
-                power: 0.8
-              });
-
-              animate(y, y.get() + (vY * factor) * 0.5, {
-                type: 'decay',
-                velocity: vY * factor, // <--- Auch hier!
-                power: 0.8
-              });
-
-            } else {
-              // Normaler Modus (Snapping) bleibt wie er ist
-              const pX = x.get() + vX * 0.2;
-              const pY = y.get() + vY * 0.2;
-              const snapX = Math.round(pX / width) * width;
-              const snapY = Math.round(pY / height) * height;
-
-              animate(x, snapX, { type: 'spring', stiffness: 200, damping: 25 });
-              animate(y, snapY, { type: 'spring', stiffness: 200, damping: 25 });
-            }
-          }}
-        ></motion.div>
       </motion.div>
 
-      {/* OVERVIEW BUTTON FIX */}
-      <button
-        // stopPropagation verhindert, dass der Klick das Grid bewegt
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsOverview(!isOverview);
-          console.log("Button Clicked");
-        }}
-        style={{
-          position: 'fixed',
-          bottom: '40px',
-          right: '40px',
-          padding: '15px 30px',
-          background: 'white',
-          color: 'black',
-          borderRadius: '50px',
-          fontWeight: 'bold',
-          zIndex: 10000,
-          cursor: 'pointer',
-          pointerEvents: 'auto', // WICHTIG!
-          border: 'none',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-        }}
-      >
-        {isOverview ? 'CLOSE' : 'OVERVIEW'}
-      </button>
+      {/* Overview Toggle Button */}
+      <div className="fixed bottom-10 right-10 z-[10000]" style={{ pointerEvents: 'auto' }}>
+        <button
+          className="px-6 py-3 bg-neutral-900 border border-neutral-700 rounded-full text-[10px] font-mono uppercase tracking-[0.2em] text-[#ececec] hover:bg-white hover:text-black transition-all shadow-2xl cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); setIsOverview(!isOverview); }}
+          onPointerDown={(e) => e.stopPropagation()} // Verhindert Drag-Start beim Klicken
+        >
+          {isOverview ? 'CLOSE VIEW' : 'OVERVIEW'}
+        </button>
+      </div>
+
+      {/* Artist Overlay (Original Code restored) */}
+      {activeArtist && (
+        <div className="fixed inset-0 z-[200] bg-black/95 text-[#ececec] overflow-y-auto p-10 flex flex-col items-center">
+          <button
+            className="fixed top-10 right-10 text-[14px] font-mono tracking-widest hover:text-white text-neutral-500 cursor-pointer"
+            onClick={() => setActiveArtist(null)}
+          >
+            [ CLOSE ]
+          </button>
+          <h2 className="text-[10vw] font-black uppercase leading-none mt-20 mb-10">{activeArtist.name}</h2>
+          <div className="w-full max-w-[600px] aspect-[4/5] bg-neutral-900 mb-10">
+            <img src={activeArtist.image} className="w-full h-full object-cover" alt={activeArtist.name} />
+          </div>
+          <div className="w-full max-w-[600px] font-mono text-sm text-neutral-400 border-l border-neutral-800 pl-6 mb-20">
+            <p className="mb-4 text-xs text-neutral-600 uppercase tracking-widest">/ BIOGRAPHY</p>
+            {activeArtist.bio}
+          </div>
+        </div>
+      )}
 
     </main>
   );

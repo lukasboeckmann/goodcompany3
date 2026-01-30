@@ -10,12 +10,14 @@ interface GridItemProps {
     col: number;
     width: number;
     height: number;
+    // Neue Props für die unendliche "Tapete"
+    totalGridCols: number;
+    totalGridRows: number;
     children: React.ReactNode;
     isZoomedOut: boolean;
-    // Wir machen diese Props optional, damit es nicht crasht
     onClickCapture?: (e: React.MouseEvent) => void;
     onDoubleClick?: (e: React.MouseEvent) => void;
-    className?: string; // Hinzugefügt für Flexibilität
+    className?: string;
 }
 
 export default function GridItem({
@@ -25,34 +27,32 @@ export default function GridItem({
     col,
     width,
     height,
+    totalGridCols,
+    totalGridRows,
     children,
+    className,
     isZoomedOut,
     onClickCapture,
-    onDoubleClick,
-    className
+    onDoubleClick
 }: GridItemProps) {
 
-    // KORRIGIERTE MATHEMATIK:
-    // Diese Formel ist robuster gegen "Zittern" an den Rändern.
-    // Wir nutzen width * 3 (Totalgröße) für den Modulo.
-
+    // LOGIK: Positionierung im unendlichen Raum (Tapete)
     const xPos = useTransform(x, (latestX) => {
         if (!width) return 0;
-        const totalW = width * 3;
-        // Berechnung: Startposition + Bewegung
+        const totalW = width * totalGridCols;
         const rawPos = (col * width) + latestX;
-        // Modulo, der auch negative Zahlen sauber "wrapped"
+        // Modulo für den Loop der gesamten Welt
         const wrappedPos = ((rawPos % totalW) + totalW) % totalW;
-        // Zentrieren: Wir schieben alles um 1 Breite zurück, damit Index 1 in der Mitte ist
-        return wrappedPos - width;
+        // Zentrierung: Verschiebt das Grid so, dass Index 0 in der Mitte bleibt
+        return wrappedPos - (width * Math.floor(totalGridCols / 2));
     });
 
     const yPos = useTransform(y, (latestY) => {
         if (!height) return 0;
-        const totalH = height * 3;
+        const totalH = height * totalGridRows;
         const rawPos = (row * height) + latestY;
         const wrappedPos = ((rawPos % totalH) + totalH) % totalH;
-        return wrappedPos - height;
+        return wrappedPos - (height * Math.floor(totalGridRows / 2));
     });
 
     return (
@@ -66,9 +66,8 @@ export default function GridItem({
                 height: height,
                 x: xPos,
                 y: yPos,
-                // WICHTIG: Hardware-Beschleunigung erzwingen gegen Grafik-Glitches
                 willChange: 'transform',
-                pointerEvents: 'auto',
+                pointerEvents: 'auto', // Wichtig für Interaktionen
                 zIndex: 0,
             }}
             onClickCapture={onClickCapture}
