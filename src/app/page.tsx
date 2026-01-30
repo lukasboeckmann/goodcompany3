@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { motion, useMotionValue, animate } from 'framer-motion';
+// WICHTIG: useVelocity und useSpring importiert für den Jelly-Effekt
+import { motion, useMotionValue, animate, Transition, useTransform, useVelocity, useSpring } from 'framer-motion';
 import useWindowSize from '@/hooks/useWindowSize';
 import GridItem from '@/components/grid/GridItem';
-import BackgroundText from '@/components/layout/BackgroundText';
+
+// Helper Components
+import Noise from '@/components/layout/Noise';
+import CustomCursor from '@/components/layout/CustomCursor';
 
 // Content Imports
 import Headline from '@/components/content/Headline';
@@ -16,30 +20,40 @@ import Studio from '@/components/content/Studio';
 import Dates from '@/components/content/Dates';
 import Signal from '@/components/content/Signal';
 import Imprint from '@/components/content/Imprint';
-import Noise from '@/components/layout/Noise';
-import CustomCursor from '@/components/layout/CustomCursor';
 
 export default function Home() {
 
   const { width, height } = useWindowSize();
-  const [isOverview, setIsOverview] = useState(false);
 
-  // --- OPTIMIERUNG: Mobile Erkennung ---
+  // --- STATE MANAGEMENT ---
+  const [isOverview, setIsOverview] = useState(true);
+  const [isIntroSequence, setIsIntroSequence] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Interaction States
+  const [activeArtist, setActiveArtist] = useState<any | null>(null);
+  const [activeStudioInstance, setActiveStudioInstance] = useState<string | null>(null);
+
+  // --- INIT LOGIC & INTRO TIMER ---
   useEffect(() => {
-    // Checkt beim Laden, ob der Screen schmal ist (Handy)
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setIsMobile(true);
     }
+
+    const introTimer = setTimeout(() => {
+      setIsOverview(false); // Zoom rein!
+
+      setTimeout(() => {
+        setIsIntroSequence(false);
+      }, 1800);
+
+    }, 1000);
+
+    return () => clearTimeout(introTimer);
   }, []);
 
-  // --- CONFIG: Dynamische Grid-Größe ---
-  // Desktop: Range 4 (9x9 = 81 Kacheln)
-  // Mobile:  Range 2 (5x5 = 25 Kacheln) -> Spart massiv Akku/CPU
+  // --- GRID CONFIG ---
   const RANGE = isMobile ? 2 : 4;
-
-  // useMemo verhindert Ruckler, da das Array nicht bei jedem Klick neu gebaut wird
   const renderIndices = useMemo(() => {
     return Array.from({ length: RANGE * 2 + 1 }, (_, i) => i - RANGE);
   }, [RANGE]);
@@ -47,30 +61,39 @@ export default function Home() {
   const TOTAL_COLS = renderIndices.length;
   const TOTAL_ROWS = renderIndices.length;
 
-  // Global Motion Values
+  // --- MOTION VALUES & PHYSICS ---
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  // --- ACHSENSPERRE & DRAG STATE ---
+  // ⚡ 1. JELLY EFFECT (SKEW) ⚡
+  // Wir messen die Geschwindigkeit und verwandeln sie in Neigung
+  const xVelocity = useVelocity(x);
+  const rawSkew = useTransform(xVelocity, [-1000, 1000], [2, -2]);
+  const skewX = useSpring(rawSkew, { mass: 0.1, stiffness: 50, damping: 10 });
+
+  // ⚡ 2. INFINITE PARALLAX LOGIC (3x3 GRID) ⚡
+  const spacingX = width ? width * 1.6 : 1000;
+  const spacingY = height ? height * 1.6 : 1000;
+
+  const bgX = useTransform(x, (value) => (value * 0.15) % spacingX);
+  const bgY = useTransform(y, (value) => (value * 0.15) % spacingY);
+
+  const bgIndices = [-1, 0, 1];
+
+  // --- PHYSICS LOGIC ---
   const directionLock = useRef<'x' | 'y' | null>(null);
   const isDragging = useRef(false);
 
-  // Interaction State (Popups & Navigation)
-  const [activeArtist, setActiveArtist] = useState<any | null>(null);
-  const [activeStudioInstance, setActiveStudioInstance] = useState<string | null>(null);
-
-  // --- PHYSIK & LOGIK ---
-
-  // 1. Pan Start
   const onPanStart = () => {
+    if (isIntroSequence) return;
     x.stop();
     y.stop();
     directionLock.current = null;
     isDragging.current = true;
   };
 
-  // 2. Pan Move (mit Achsensperre)
   const onPan = (e: any, info: any) => {
+    if (isIntroSequence) return;
     const factor = isOverview ? 2.5 : 1;
 
     if (!isOverview) {
@@ -92,26 +115,22 @@ export default function Home() {
         x.set(x.get() + info.delta.x * factor);
         y.set(y.get() + info.delta.y * factor);
       }
-
     } else {
-      // Flugmodus (Overview): Alles erlaubt
       x.set(x.get() + info.delta.x * factor);
       y.set(y.get() + info.delta.y * factor);
     }
   };
 
-  // 3. Pan End
   const onPanEnd = (e: any, info: any) => {
+    if (isIntroSequence) return;
     const vX = info.velocity.x;
     const vY = info.velocity.y;
 
     if (isOverview) {
-      // Flugmodus Decay
       const factor = 2.5;
       animate(x, x.get() + (vX * factor) * 0.5, { type: 'decay', velocity: vX * factor, power: 0.8 });
       animate(y, y.get() + (vY * factor) * 0.5, { type: 'decay', velocity: vY * factor, power: 0.8 });
     } else {
-      // Snap Grid
       const pX = x.get() + vX * 0.2;
       const pY = y.get() + vY * 0.2;
       const snapX = Math.round(pX / width) * width;
@@ -121,7 +140,6 @@ export default function Home() {
       animate(y, snapY, { type: 'spring', stiffness: 200, damping: 25 });
     }
 
-    // Klick-Sperre kurz halten
     setTimeout(() => {
       isDragging.current = false;
     }, 50);
@@ -133,41 +151,70 @@ export default function Home() {
     }
   };
 
-  // Safety Loading
+  // --- TRANSITIONS ---
+  const smoothTransition: Transition = { duration: 0.8, ease: [0.22, 1, 0.36, 1] };
+  const actionZoomTransition: Transition = { duration: 1.8, ease: [0.85, 0, 0.2, 1.2] };
+
+  // SAFETY CHECK
   if (!width) return <div className="fixed inset-0 bg-[#0c0c0c]" />;
 
   return (
     <main
       className="fixed inset-0 bg-[#0c0c0c] text-[#ececec] overflow-hidden font-mono"
-      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+      style={{
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        pointerEvents: isIntroSequence ? 'none' : 'auto'
+      }}
     >
-      {/* --- PHANTOM LEVEL UPGRADES --- */}
+      {/* VIBE LAYERS */}
       <Noise />
       <CustomCursor />
-      {/* ----------------------------- */}
 
-      {/* STATISCHER HINTERGRUND */}
-      <div className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
-        <h1
-          className="text-[12vw] font-black text-[#1a1a1a] whitespace-nowrap tracking-tighter leading-none"
-          style={{
-            fontFamily: 'Helvetica, Arial, sans-serif',
-            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
-            maskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)'
-          }}
-        >
-          GOOD COMPANY
-        </h1>
+      {/* ⚡ INFINITE PARALLAX BACKGROUND (3x3 Grid) ⚡ */}
+      <div className="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden">
+        {bgIndices.map((rowOffset) =>
+          bgIndices.map((colOffset) => (
+            <motion.div
+              key={`bg-${rowOffset}-${colOffset}`}
+              className="absolute flex items-center justify-center w-full h-full"
+              style={{
+                x: bgX,
+                y: bgY,
+                left: colOffset * spacingX,
+                top: rowOffset * spacingY,
+                width: width,
+                height: height
+              }}
+            >
+              <h1
+                // FIX: 'text-white opacity-5' statt Hex-Code mit Slash
+                className="text-[12vw] font-black text-white opacity-5 whitespace-nowrap tracking-tighter leading-none"
+                style={{
+                  fontFamily: 'Helvetica, Arial, sans-serif',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                  maskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)'
+                }}
+              >
+                GOOD COMPANY
+              </h1>
+            </motion.div>
+          ))
+        )}
       </div>
 
+      {/* THE GRID */}
       <motion.div
         className="relative w-full h-full cursor-grab active:cursor-grabbing z-10"
         style={{ transformOrigin: 'center center' }}
         onPanStart={onPanStart}
         onPan={onPan}
         onPanEnd={onPanEnd}
+
+        initial={{ scale: 0.25 }}
         animate={{ scale: isOverview ? 0.25 : 1 }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        transition={isIntroSequence ? actionZoomTransition : smoothTransition}
       >
         {renderIndices.map(row =>
           renderIndices.map(col => {
@@ -189,28 +236,23 @@ export default function Home() {
                 totalGridRows={TOTAL_ROWS}
                 isZoomedOut={isOverview}
 
-                // --- SMART CLICK LOGIK ---
                 onClickCapture={(e) => {
-                  if (isDragging.current) {
+                  if (isIntroSequence || isDragging.current) {
                     e.stopPropagation();
                     return;
                   }
 
                   if (isOverview) {
                     e.stopPropagation();
-                    setIsOverview(false);
+                    setIsOverview(false); // Zoom in!
 
-                    // A) Smart Snap Calculation
                     const targetX = -(col * width);
                     const targetY = -(row * height);
-
                     const totalW = width * TOTAL_COLS;
                     const totalH = height * TOTAL_ROWS;
-
                     const currentX = x.get();
                     const currentY = y.get();
 
-                    // Finde die nächstgelegene Instanz dieser Kachel (Loop Logic)
                     const nearestX = targetX + Math.round((currentX - targetX) / totalW) * totalW;
                     const nearestY = targetY + Math.round((currentY - targetY) / totalH) * totalH;
 
@@ -220,29 +262,51 @@ export default function Home() {
                 }}
 
                 onDoubleClick={() => {
-                  if (isDragging.current) return;
+                  if (isIntroSequence || isDragging.current) return;
                   if (!isOverview) setIsOverview(true);
                 }}
               >
-                <div className={`w-full h-full relative overflow-hidden flex items-center justify-center bg-[#0c0c0c]/95 border border-white/5 ${isOverview ? 'pointer-events-none' : 'pointer-events-auto'}`}>
-                  {(() => {
-                    if (contentRow === 0) {
-                      if (contentCol === 0) return <Headline />;
-                      if (contentCol === 1) return <Roster setActiveArtist={setActiveArtist} />;
-                      if (contentCol === 2) return <VaultCell />;
-                    }
-                    if (contentRow === 1) {
-                      if (contentCol === 0) return <GalleryCell x={x} y={y} size={{ w: width, h: height }} isZoomedOut={isOverview} />;
-                      if (contentCol === 1) return <Socials onNavigate={handleNavigate} />;
-                      if (contentCol === 2) return <Studio activeStudioInstance={activeStudioInstance} setActiveStudioInstance={setActiveStudioInstance} instanceId={instanceId} isZoomedOut={isOverview} />;
-                    }
-                    if (contentRow === 2) {
-                      if (contentCol === 0) return <Dates />;
-                      if (contentCol === 1) return <Signal />;
-                      if (contentCol === 2) return <Imprint />;
-                    }
-                    return null;
-                  })()}
+                {/* ⚡ 3. FRAME WRAPPER (Schwarzer Hintergrund) ⚡ */}
+                {/* Das verhindert, dass der Hintergrund durchscheint, wenn die Scale != 1 ist */}
+                <div className="w-full h-full bg-[#0c0c0c]">
+
+                  {/* ANIMIERTER CONTENT MIT JELLY & ZOOM */}
+                  <motion.div
+                    className={`w-full h-full relative overflow-hidden flex items-center justify-center bg-[#0c0c0c]/95 border border-white/5 ${isOverview ? 'cursor-pointer' : ''}`}
+
+                    // JELLY EFFECT & GPU FIX
+                    style={{
+                      skewX: skewX,
+                      // Anti-Flicker:
+                      backfaceVisibility: 'hidden',
+                      WebkitBackfaceVisibility: 'hidden',
+                      // HIER DIE ÄNDERUNG: Framer-Syntax statt CSS-String
+                      z: 0,
+                      willChange: 'transform'
+                    }}
+                    // HOVER ZOOM (1.05)
+                    whileHover={isOverview ? { scale: 1.05, borderColor: "rgba(255,255,255,0.4)", zIndex: 10 } : {}}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {(() => {
+                      if (contentRow === 0) {
+                        if (contentCol === 0) return <Headline />;
+                        if (contentCol === 1) return <Roster setActiveArtist={setActiveArtist} />;
+                        if (contentCol === 2) return <VaultCell />;
+                      }
+                      if (contentRow === 1) {
+                        if (contentCol === 0) return <GalleryCell x={x} y={y} size={{ w: width, h: height }} isZoomedOut={isOverview} />;
+                        if (contentCol === 1) return <Socials onNavigate={handleNavigate} />;
+                        if (contentCol === 2) return <Studio activeStudioInstance={activeStudioInstance} setActiveStudioInstance={setActiveStudioInstance} instanceId={instanceId} isZoomedOut={isOverview} />;
+                      }
+                      if (contentRow === 2) {
+                        if (contentCol === 0) return <Dates />;
+                        if (contentCol === 1) return <Signal />;
+                        if (contentCol === 2) return <Imprint />;
+                      }
+                      return null;
+                    })()}
+                  </motion.div>
                 </div>
               </GridItem>
             )
@@ -250,31 +314,31 @@ export default function Home() {
         )}
       </motion.div>
 
-      {/* OVERVIEW BUTTON - TOP RIGHT */}
-      <div className="fixed top-10 right-10 z-[10000]" style={{ pointerEvents: 'auto' }}>
-        <button
-          className="text-[12px] font-mono font-bold tracking-[0.2em] text-neutral-500 hover:text-[#ececec] transition-colors cursor-pointer uppercase select-none"
-          onClick={(e) => {
-            e.stopPropagation();
+      {/* OVERVIEW BUTTON */}
+      {!isIntroSequence && (
+        <div className="fixed top-10 right-10 z-[10000] animate-in fade-in duration-1000" style={{ pointerEvents: 'auto' }}>
+          <button
+            className="text-[12px] font-mono font-bold tracking-[0.2em] text-neutral-500 hover:text-[#ececec] transition-colors cursor-pointer uppercase select-none"
+            onClick={(e) => {
+              e.stopPropagation();
 
-            // Wenn wir schließen, snappen wir zum nächstgelegenen Rasterpunkt
-            if (isOverview) {
-              const currentX = x.get();
-              const currentY = y.get();
-              const snapX = Math.round(currentX / width) * width;
-              const snapY = Math.round(currentY / height) * height;
+              if (isOverview) {
+                const currentX = x.get();
+                const currentY = y.get();
+                const snapX = Math.round(currentX / width) * width;
+                const snapY = Math.round(currentY / height) * height;
 
-              animate(x, snapX, { type: 'spring', stiffness: 200, damping: 30 });
-              animate(y, snapY, { type: 'spring', stiffness: 200, damping: 30 });
-            }
-
-            setIsOverview(!isOverview);
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {isOverview ? '[ CLOSE ]' : '[ OVERVIEW ]'}
-        </button>
-      </div>
+                animate(x, snapX, { type: 'spring', stiffness: 200, damping: 30 });
+                animate(y, snapY, { type: 'spring', stiffness: 200, damping: 30 });
+              }
+              setIsOverview(!isOverview);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {isOverview ? '[ CLOSE ]' : '[ OVERVIEW ]'}
+          </button>
+        </div>
+      )}
 
       {/* ARTIST OVERLAY */}
       {activeArtist && (
