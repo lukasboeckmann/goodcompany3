@@ -1,0 +1,193 @@
+.section {
+    padding: 100px 0;
+    background-color: var(--background);
+    text-align: center;
+}
+
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.title {
+    font-family: var(--font-rounded);
+    font-size: 3rem;
+    color: var(--accent-red);
+    text-transform: uppercase;
+    margin-bottom: 80px;
+    letter-spacing: 0.1em;
+    /* Reduced Glow */
+    text-shadow: 0 0 10px var(--accent-red), 0 0 20px rgba(230, 0, 0, 0.4);
+}
+
+.featuredVideo {
+    margin-bottom: 60px;
+    width: 100%;
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Renamed to unique class to bust cache/specificity issues */
+.carouselContainer {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 20px;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+    /* Smooth scrolling for buttons */
+}
+
+.carouselContainer::-webkit-scrollbar {
+    display: none;
+}
+
+/* Renamed video item class */
+.carouselVideoCard {
+    flex: 0 0 350px !important;
+    width: 350px !important;
+    position: relative;
+    aspect-ratio: 16 / 9;
+    /* Modern 16:9 Aspect Ratio */
+    height: auto;
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    background: #000;
+    scroll-snap-align: center;
+    /* Center alignment feels more stable/premium */
+    /* scroll-snap-stop: always; REMOVED to allow momentum scrolling again */
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.carouselVideoCard:hover {
+    transform: scale(1.02);
+    filter: brightness(1.1);
+}
+
+.thumbnailWrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    /* Necessary for next/image fill */
+}
+
+.playOverlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    transition: background 0.2s ease;
+}
+
+.carouselVideoCard:hover .playOverlay {
+    background: rgba(220, 0, 0, 0.8);
+    border-color: var(--accent-red);
+}
+
+.playIcon {
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-left: 18px solid white;
+    margin-left: 4px;
+}
+
+/* Base video wrapper for featured video only */
+.videoWrapper {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    background: #000;
+}
+
+.iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+/* Navigation Controls */
+.controls {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1000px;
+    margin: 20px auto 0;
+    padding: 0 4px;
+}
+
+.navButton {
+    background: transparent;
+    border: none;
+    color: var(--accent-red);
+    font-family: var(--font-rounded);
+    font-size: 1.2rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: 0.1em;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.navButton:hover {
+    opacity: 1;
+    text-shadow: 0 0 10px var(--accent-red);
+}
+
+.navButton:active {
+    transform: scale(0.95);
+}
+
+@media (max-width: 768px) {
+    .section {
+        padding: 60px 0;
+    }
+
+    .title {
+        font-size: 2rem;
+        margin-bottom: 40px;
+    }
+
+    .carouselVideoCard {
+        flex: 0 0 90vw !important;
+        /* Wider cards = harder to scroll past = more control */
+        width: 90vw !important;
+    }
+
+    .carouselContainer {
+        gap: 30px;
+        /* Bigger gap = more travel distance needed per item */
+        padding-bottom: 10px;
+    }
+
+    .navButton {
+        font-size: 1rem;
+    }
+}

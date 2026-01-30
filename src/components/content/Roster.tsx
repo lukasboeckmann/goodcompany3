@@ -1,74 +1,56 @@
-'use client';
-
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 
 const ARTISTS = [
-    { name: "VELI", img: "https://picsum.photos/800/1200?grayscale&blur=2" },
-    { name: "*MALIIIK", img: "https://picsum.photos/801/1200?grayscale&blur=2" },
-    { name: "CUFFA", img: "https://picsum.photos/802/1200?grayscale&blur=2" },
-    { name: "JAMAL", img: "https://picsum.photos/803/1200?grayscale&blur=2" }
+    {
+        id: 'veli',
+        name: 'Veli',
+        bio: 'The Visionary.',
+        description: '',
+        image: '/images/gallery_02.jpg',
+        links: [
+            { label: 'INSTAGRAM', url: 'https://www.instagram.com/theregularkid/' },
+            { label: 'SPOTIFY', url: 'https://open.spotify.com/intl-de/artist/4zihxCwRYFfvLnyDbMKLmg' }
+        ]
+    },
+    {
+        id: 'malik',
+        name: 'Malik',
+        bio: 'The Architect.',
+        description: '',
+        image: '/images/maliiik_profile.jpg',
+        links: [
+            { label: 'INSTAGRAM', url: 'https://www.instagram.com/jamalsrevengee/' },
+            { label: 'SPOTIFY', url: 'https://open.spotify.com/intl-de/artist/4zihxCwRYFfvLnyDbMKLmg' }
+        ]
+    }
 ];
 
-export default function Roster() {
-    const [active, setActive] = useState<number | null>(null);
+export default function Roster({ setActiveArtist }: { setActiveArtist: (artist: any) => void }) {
+    const [hoveredArtistId, setHoveredArtistId] = useState<string | null>(null);
 
     return (
-        <div className="w-full h-full relative flex items-center justify-center bg-[#0d1311] overflow-hidden">
-
-            {/* Background Layer - The Reveal */}
-            <div className="absolute inset-0 z-0">
-                <AnimatePresence mode='wait'>
-                    {active !== null && (
-                        <motion.div
-                            key={active}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.6 }} // Low opacity as requested
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.4 }}
-                            className="absolute inset-0"
-                        >
-                            {/* Next/Image handling remote domains? Need config. using img for cleanliness in prototype */}
-                            <img
-                                src={ARTISTS[active].img}
-                                alt=""
-                                className="w-full h-full object-cover grayscale brightness-125 contrast-125"
-                            />
-                            {/* Gradient Overlay for Text Readability */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* Content Layer - The List */}
-            <div className="relative z-10 flex flex-col items-start justify-center gap-2 p-8 w-full max-w-md">
-                {ARTISTS.map((artist, i) => (
-                    <motion.div
-                        key={artist.name}
-                        className="cursor-pointer"
-                        onHoverStart={() => setActive(i)}
-                        onHoverEnd={() => setActive(null)}
-                        onTap={() => setActive(i === active ? null : i)} // Toggle on mobile
-                    >
-                        <motion.h2
-                            className="text-6xl md:text-8xl font-black tracking-tighter text-transparent bg-clip-text bg-white stroke-white"
+        <div className="w-full h-full flex flex-col justify-center text-left select-none pointer-events-auto pl-[15%]">
+            <p className="text-[#808080] font-mono text-xs tracking-[0.2em] mb-[4vh] uppercase">[ Roster_01.idx ]</p>
+            <ul className="p-0 list-none">
+                {ARTISTS.map(artist => (
+                    <li key={artist.id} className="mb-[1vh]">
+                        <button
+                            onMouseEnter={() => setHoveredArtistId(artist.id)}
+                            onMouseLeave={() => setHoveredArtistId(null)}
+                            onClick={(e) => { e.stopPropagation(); setActiveArtist(artist); }}
+                            className="bg-none border-none text-[#ececec] text-[3vw] font-normal font-mono cursor-pointer uppercase transition-opacity duration-400 tracking-[-0.03em]"
                             style={{
-                                WebkitTextStroke: '1px rgba(255,255,255,0.2)',
-                                color: active === i ? 'white' : 'transparent'
+                                opacity: hoveredArtistId ? (hoveredArtistId === artist.id ? 1 : 0.2) : 0.7
                             }}
-                            animate={{
-                                x: active === i ? 20 : 0,
-                                opacity: active !== null && active !== i ? 0.3 : 1
-                            }}
-                            transition={{ duration: 0.3 }}
                         >
                             {artist.name}
-                        </motion.h2>
-                    </motion.div>
+                            {hoveredArtistId === artist.id && <span className="ml-[10px] text-[10px] align-middle opacity-50">←</span>}
+                        </button>
+                    </li>
                 ))}
-            </div>
+            </ul>
         </div>
     );
 }
+
+export { ARTISTS };

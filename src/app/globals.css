@@ -1,8 +1,16 @@
-/* Wir entfernen @tailwind base/components/utilities, um Build-Fehler zu vermeiden */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
+  --background: #050505;
+  --foreground: #F0F0F0;
+  --accent-red: #E60000;
+  --accent-gold: #D4AF37;
+  --spacing-unit: 8px;
+  --font-heading: var(--font-playfair), serif;
+  --font-body: var(--font-geist-sans), sans-serif;
+  --font-rounded: var(--font-geist-mono), monospace;
 }
 
 * {

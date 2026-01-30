@@ -1,0 +1,849 @@
+.hero {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: var(--background);
+
+    /* ENABLE 3D SPACE GLOBALLY */
+    perspective: 1000px;
+    perspective-origin: center center;
+}
+
+.videoContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    background-color: #000;
+}
+
+/* Placeholder - Pitch Black */
+.placeholderBg {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    position: relative;
+}
+
+.grain {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.1'/%3E%3C/svg%3E");
+    opacity: 0.3;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+}
+
+.overlay {
+    /* Subtle vignette */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, transparent 50%, #000 100%);
+    z-index: 1;
+}
+
+.content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.title {
+    font-size: 18vw;
+    line-height: 0.8;
+    /* Stranger Things Vibe: Neon Red */
+    color: var(--accent-red);
+    text-shadow:
+        0 0 10px rgba(230, 0, 0, 0.8),
+        0 0 40px rgba(230, 0, 0, 0.4),
+        0 0 80px rgba(230, 0, 0, 0.2);
+
+    display: flex;
+    gap: 0;
+    letter-spacing: -0.05em;
+    /* Tight packing */
+    transform: scaleY(1.1);
+    /* Slightly taller */
+    position: relative;
+    z-index: 2;
+}
+
+/* Atmospheric Haze behind the word */
+.title::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 120%;
+    height: 120%;
+    background: radial-gradient(closest-side, rgba(200, 0, 0, 0.4) 0%, rgba(200, 0, 0, 0.1) 60%, transparent 100%);
+    filter: blur(40px);
+    z-index: -1;
+    pointer-events: none;
+    mix-blend-mode: screen;
+}
+
+.subtitle {
+    font-size: 1.5rem;
+    margin-top: 2rem;
+    font-family: var(--font-body);
+    /* Modern contrast */
+    text-transform: uppercase;
+    color: #fff;
+    letter-spacing: 0.5em;
+    font-weight: 300;
+    opacity: 0.8;
+}
+
+/* --- AB HIER KOMPLETT NEU --- */
+
+.nav {
+    display: flex;
+    justify-content: center;
+    gap: 4rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 3rem 0 9rem 0;
+    z-index: 10;
+    margin: 0;
+    /* Layer transparency fix: No black gradient on desktop either */
+    background: transparent;
+    perspective: 1000px;
+    perspective-origin: center center;
+    user-select: none;
+    /* Disable text selection for the entire nav container */
+}
+
+.navLink {
+    color: #e30613 !important;
+    font-family: var(--font-rounded);
+    text-transform: uppercase;
+    font-size: 1.4rem;
+    letter-spacing: 0.15em;
+    /* Bleibt fest, kein Zusammenziehen */
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    position: relative;
+    overflow: visible !important;
+    opacity: 0;
+    /* Wir starten etwas näher (-500px), damit es nicht so extrem aus der Mitte schießt */
+    transform: translateZ(-500px);
+    animation: flyInFlicker 3s cubic-bezier(0.2, 1, 0.3, 1) forwards;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+    user-select: none;
+    /* Disable text selection */
+}
+
+/* Stagger Delays */
+.navLink:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.navLink:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.navLink:nth-child(3) {
+    animation-delay: 0.30s;
+}
+
+.navLink:nth-child(4) {
+    animation-delay: 0.40s;
+}
+
+/* SCHWEIF BASIS (Der Stock-Fix) */
+/* SCHWEIF BASIS - Puristisch und gerade */
+/* SCHWEIF BASIS - Schmaler & Schärfer */
+.navLink::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+
+    /* Wichtig: Schmaler machen (40%), damit sie sich nicht vertikal berühren */
+    height: 40% !important;
+
+    /* Wichtig: Kürzer machen (150px), damit sie sich horizontal nicht treffen */
+    width: 150px !important;
+
+    z-index: -1 !important;
+
+    /* Wichtig: Weniger Blur (5px) macht den Strahl definierter */
+    filter: blur(5px) !important;
+
+    pointer-events: none !important;
+    animation: trailKill 4.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation-delay: inherit;
+}
+
+/* LINKS (Wort 1 & 2): Schweif klebt rechts */
+/* LINKS (Wort 1 & 2): Schweif klebt rechts */
+.navLink:nth-child(1)::before {
+    left: 100% !important;
+    margin-left: -2px !important;
+    width: 110px !important;
+    /* LIVE: Lang */
+    background: linear-gradient(to right, rgba(227, 6, 19, 1) 0%, rgba(227, 6, 19, 0.6) 30%, transparent 100%) !important;
+}
+
+.navLink:nth-child(2)::before {
+    left: 100% !important;
+    margin-left: -2px !important;
+    width: 50px !important;
+    /* SHOP: Kurz */
+    background: linear-gradient(to right, rgba(227, 6, 19, 1) 0%, rgba(227, 6, 19, 0.6) 30%, transparent 100%) !important;
+}
+
+/* RECHTS (Wort 3 & 4): Schweif klebt links */
+.navLink:nth-child(3)::before {
+    right: 100% !important;
+    margin-right: -2px !important;
+    width: 40px !important;
+    /* KONTAKT: Kurz */
+    background: linear-gradient(to left, rgba(227, 6, 19, 1) 0%, rgba(227, 6, 19, 0.6) 30%, transparent 100%) !important;
+}
+
+.navLink:nth-child(4)::before {
+    right: 100% !important;
+    margin-right: -2px !important;
+    width: 110px !important;
+    /* AWARENESS: Lang */
+    background: linear-gradient(to left, rgba(227, 6, 19, 1) 0%, rgba(227, 6, 19, 0.6) 30%, transparent 100%) !important;
+}
+
+/* KEYFRAMES */
+@keyframes flyInFlicker {
+
+    /* --- ANFLUG (0% bis 75%) --- */
+    0% {
+        opacity: 0;
+        transform: translateZ(-500px);
+        filter: blur(10px);
+        text-shadow: none;
+    }
+
+    /* Kurz vor dem Einschlag: Erster Glow erscheint */
+    70% {
+        opacity: 0.8;
+        filter: blur(0);
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    /* --- DEIN BROKEN LIGHT RHYTHMUS (ab 75%) --- */
+    75% {
+        opacity: 1;
+        transform: translateZ(0);
+        text-shadow: 0 0 10px var(--accent-red), 0 0 30px var(--accent-red), 0 0 60px var(--accent-red);
+    }
+
+    77% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    /* 5% Schritt aus deinem Code */
+
+    80% {
+        opacity: 1;
+        text-shadow: 0 0 20px var(--accent-red), 0 0 40px var(--accent-red);
+    }
+
+    /* Starker Aufblitzer */
+
+    82% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    84% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    88% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    90% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    93% {
+        opacity: 1;
+        /* Dein "Sehr starker Flare" */
+        text-shadow: 0 0 30px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateZ(0);
+        /* Stabiler Endzustand */
+        text-shadow: 0 0 10px var(--accent-red), 0 0 30px var(--accent-red), 0 0 60px var(--accent-red);
+    }
+}
+
+@keyframes trailKill {
+    0% {
+        opacity: 1;
+    }
+
+    74% {
+        opacity: 1;
+        width: inherit;
+    }
+
+    75%,
+    100% {
+        width: 0;
+        opacity: 0;
+    }
+}
+
+/* MOBILE FIX - Dynamic Flex Overlay */
+@media (max-width: 1024px) {
+    .nav {
+        /* Full screen overlay removal - causing alignment issues */
+        /* Explicitly positioning the container STRIP instead of a full screen box */
+        position: absolute !important;
+        inset: auto !important;
+        /* Reset inset */
+        top: auto !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+
+        /* HARD POSITIONING FROM BOTTOM */
+        bottom: 40% !important;
+
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center !important;
+        align-items: flex-end !important;
+
+        /* No padding needed if we position the box itself */
+        padding-bottom: 0 !important;
+
+        gap: 2rem !important;
+
+        z-index: 100 !important;
+        background: transparent !important;
+        flex-wrap: nowrap !important;
+        perspective: 1000px;
+        pointer-events: none;
+        /* Container ignores clicks */
+    }
+
+    .navLink {
+        /* Re-enable pointer events for links */
+        pointer-events: auto !important;
+
+        /* Mobile styling */
+        font-size: 0.8rem !important;
+        white-space: nowrap;
+        animation: flyInFlicker 3s cubic-bezier(0.2, 1, 0.3, 1) forwards !important;
+        opacity: 0;
+        transform: translateZ(-500px);
+        text-shadow: 0 0 5px #e30613, 0 0 15px #e30613, 0 0 30px #e30613 !important;
+    }
+
+    .navLinkSkipped {
+        pointer-events: auto !important;
+        font-size: 0.8rem !important;
+        white-space: nowrap;
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+        text-shadow: 0 0 5px #e30613, 0 0 15px #e30613, 0 0 30px #e30613 !important;
+    }
+
+    /* Smartphone Specific (iPhone, Android, up to large Pro Max sizes) */
+    @media (max-width: 600px) {
+        .nav {
+            /* Keep it high up! */
+            bottom: 38% !important;
+            padding-bottom: 0 !important;
+            gap: 0.8rem !important;
+        }
+    }
+
+    /* Show mobile trails */
+    .navLink::before {
+        display: block !important;
+        width: 40px !important;
+        height: 60% !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        filter: blur(3px) !important;
+    }
+
+    /* INDIVIDUAL MOBILE TRAIL LENGTHS */
+    .navLink:nth-child(1)::before {
+        width: 15px !important;
+    }
+
+    .navLink:nth-child(2)::before {
+        width: 10px !important;
+    }
+
+    .navLink:nth-child(3)::before {
+        width: 8px !important;
+    }
+
+    .navLink:nth-child(4)::before {
+        width: 20px !important;
+    }
+
+    .navLinkSkipped::before {
+        display: none !important;
+    }
+
+    /* Lang Switcher - Keep Absolute top right */
+    /* Lang Switcher - Keep Absolute top right */
+    /* Increased specificity (.hero prefix) to override desktop styles without !important on visual props */
+    .hero .langSwitcher,
+    .hero .langSwitcherSkipped {
+        position: absolute !important;
+        top: clamp(1rem, 5vh, 2rem) !important;
+        right: clamp(1rem, 5vw, 2rem) !important;
+        font-size: 1rem !important;
+        pointer-events: auto !important;
+
+        /* Preserve existing animation/state logic */
+        opacity: 0;
+        /* will be handled by animation */
+
+        /* NO !important here, so keyframes can override it! */
+        /* Specificity keeps it winning over desktop defaults */
+        text-shadow: 0 0 5px #e30613, 0 0 15px #e30613, 0 0 30px #e30613;
+
+        transform: none !important;
+    }
+
+    .hero .langSwitcher {
+        animation: staticRevealFlicker 1.5s linear forwards !important;
+        animation-delay: 2.2s !important;
+    }
+
+    .hero .langSwitcherSkipped {
+        /* No !important on opacity, so animation can override it! */
+        opacity: 1;
+        animation: none !important;
+    }
+
+    .hero .flickerInstant {
+        animation: clickFlickerDesktop 2s linear forwards !important;
+    }
+}
+
+/* LANDSCAPE MOBILE FIX (iPhone rotated - very narrow height) - FLEX ONLY */
+@media (max-height: 500px) and (orientation: landscape) and (hover: none) {
+    .content {
+        margin-top: -5vh;
+    }
+
+    .title {
+        font-size: 14vh !important;
+    }
+
+    .nav {
+        /* Switch to row for landscape to save vertical space */
+        flex-direction: row !important;
+        padding-bottom: 2vh !important;
+        /* Kiss the bottom edge */
+        gap: 2rem !important;
+        justify-content: center !important;
+        /* Center horizontally in row mode */
+    }
+}
+
+/* TABLET LANDSCAPE FIX (iPad Standard & Pro) */
+/* Relaxed query: covers all landscape devices > 600px width (Tablets & Desktop Windows) */
+/* We rely on the layout being robust enough for desktop too if it triggers */
+@media (min-width: 600px) and (orientation: landscape) {
+    .title {
+        font-size: 18vh !important;
+    }
+
+    .nav {
+        /* High Z-Index to ensure visibility */
+        z-index: 100 !important;
+
+        flex-direction: row !important;
+        /* Massive lift from bottom (30vh) */
+        padding-bottom: 30vh !important;
+        gap: 3rem !important;
+        justify-content: center !important;
+
+        /* Force overlay mode */
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        pointer-events: none;
+        display: flex !important;
+        align-items: flex-end !important;
+    }
+
+    /* Interactive children */
+    .navLink,
+    .navLinkSkipped,
+    .langSwitcher,
+    .langSwitcherSkipped {
+        pointer-events: auto !important;
+    }
+}
+
+/* SPRACH-UMSCHALTER */
+/* In deiner CSS-Datei (z.B. Navbar.module.css) */
+
+/* SPRACH-UMSCHALTER */
+.langSwitcher {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    z-index: 20;
+
+    /* Styling wie NavLinks */
+    color: #e30613 !important;
+    text-decoration: none;
+    font-family: var(--font-rounded);
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 1.3rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+
+    /* Initial State: Invisible & Static */
+    opacity: 0;
+    transform: none;
+    /* Kein Fly-In */
+
+    /* Animation: Nur Aufblinken & Flackern */
+    animation: staticRevealFlicker 1.5s linear forwards;
+    /* Startet synchron zur Ankunft der Navigation (ca. 75% von 3s = 2.25s) */
+    animation-delay: 2.2s;
+}
+
+.langSwitcher::before {
+    display: none !important;
+}
+
+@keyframes staticRevealFlicker {
+    0% {
+        opacity: 0;
+        text-shadow: none;
+    }
+
+    /* ZACK: Da ist er */
+    1% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    /* Das Flacker-Skript (synchron zu flyInFlicker Ende) */
+    5% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    15% {
+        opacity: 1;
+        text-shadow: 0 0 20px var(--accent-red), 0 0 40px var(--accent-red);
+    }
+
+    17% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    25% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red);
+    }
+
+    40% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    50% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    60% {
+        opacity: 1;
+        text-shadow: 0 0 30px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    /* Flare */
+
+    100% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 30px var(--accent-red), 0 0 60px var(--accent-red), 0 0 90px var(--accent-red), 0 0 120px var(--accent-red);
+    }
+}
+
+/* --- SKIPPED STATE (Visible Immediately) --- */
+
+.navLinkSkipped {
+    color: #e30613 !important;
+    font-family: var(--font-rounded);
+    text-transform: uppercase;
+    font-size: 1.4rem;
+    letter-spacing: 0.15em;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    position: relative;
+    overflow: visible !important;
+
+    /* State: Fully Visible, No Animation */
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+    filter: none;
+    text-shadow: 0 0 10px var(--accent-red), 0 0 30px var(--accent-red), 0 0 60px var(--accent-red);
+
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    user-select: none;
+    /* Disable text selection */
+}
+
+/* Ensure Trails are gone on skipped state */
+.navLinkSkipped::before {
+    display: none !important;
+}
+
+.langSwitcherSkipped {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    z-index: 20;
+
+    color: #e30613 !important;
+    text-decoration: none;
+    font-family: var(--font-rounded);
+    text-transform: uppercase;
+    font-weight: 600;
+    font-size: 1.3rem;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+
+    /* State: Fully Visible, No Animation */
+    opacity: 1;
+    transform: none;
+    text-shadow: 0 0 10px var(--accent-red), 0 0 30px var(--accent-red), 0 0 60px var(--accent-red), 0 0 90px var(--accent-red), 0 0 120px var(--accent-red);
+}
+
+.langSwitcherSkipped::before {
+    display: none !important;
+}
+
+/* --- HOVER FEEDBACK --- */
+.navLink:hover,
+.navLinkSkipped:hover,
+.langSwitcher:hover,
+.langSwitcherSkipped:hover {
+    transform: scale(1.05) translateZ(0);
+    text-shadow: 0 0 10px #e30613, 0 0 40px #e30613, 0 0 80px #e30613;
+    transition: all 0.3s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+/* --- INSTANT FLICKER (On Click) --- */
+/* --- INSTANT FLICKER (On Click) --- */
+.flickerInstant {
+    animation: clickFlickerDesktop 2s linear forwards !important;
+    /* Opacity controlled by animation */
+    /* KILL TRANSITION: Damit es hart flackert und nicht weich "nachzieht" */
+    transition: none !important;
+}
+
+@keyframes clickFlicker {
+    0% {
+        opacity: 1;
+        text-shadow: 0 0 15px var(--accent-red), 0 0 30px var(--accent-red);
+    }
+
+    5% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    10% {
+        opacity: 1;
+        text-shadow: 0 0 20px var(--accent-red), 0 0 40px var(--accent-red);
+    }
+
+    15% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    20% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    22% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    30% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    32% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    35% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    60% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    62% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    65% {
+        opacity: 1;
+        text-shadow: 0 0 40px var(--accent-red), 0 0 70px var(--accent-red);
+    }
+
+    70% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    100% {
+        opacity: 1;
+        text-shadow: 0 0 15px var(--accent-red), 0 0 30px var(--accent-red);
+    }
+}
+
+/* CLICK FLICKER DESKTOP (Intense) */
+@keyframes clickFlickerDesktop {
+    0% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    5% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    10% {
+        opacity: 1;
+        text-shadow: 0 0 40px var(--accent-red), 0 0 80px var(--accent-red);
+    }
+
+    15% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    20% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    22% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    30% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    32% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    35% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    60% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    62% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    65% {
+        opacity: 1;
+        text-shadow: 0 0 60px var(--accent-red), 0 0 100px var(--accent-red);
+    }
+
+    70% {
+        opacity: 1;
+        text-shadow: 0 0 25px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    100% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 30px var(--accent-red), 0 0 60px var(--accent-red);
+    }
+}
+
+/* --- CLICK FEEDBACK (Tactile Feel) --- */
+.navLink:active,
+.navLinkSkipped:active,
+.langSwitcher:active,
+.langSwitcherSkipped:active {
+    transform: scale(0.95) translateZ(0) !important;
+    /* Press down effect */
+    /* Kein Weiß mehr, bleibt Rot */
+    color: #e30613 !important;
+    text-shadow: 0 0 10px #e30613;
+    transition: all 0.05s ease-out;
+}

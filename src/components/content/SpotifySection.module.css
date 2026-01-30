@@ -1,0 +1,189 @@
+.section {
+    padding: 80px 0;
+    background-color: var(--background);
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+}
+
+.title {
+    font-family: var(--font-rounded);
+    font-size: 3rem;
+    color: var(--accent-red);
+    text-transform: uppercase;
+    margin-bottom: 100px;
+    letter-spacing: 0.1em;
+    /* Reduced Glow */
+    text-shadow: 0 0 10px var(--accent-red), 0 0 20px rgba(230, 0, 0, 0.4);
+}
+
+.container {
+    width: 100%;
+    max-width: 1000px;
+    padding: 0 20px;
+}
+
+.embedWrapper {
+    width: 100%;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    min-height: 352px;
+}
+
+.placeholder {
+    width: 100%;
+    /* Exact height of the standard Spotify embed */
+    height: 352px;
+    background: #121212;
+    /* Spotify Dark Anthrazit */
+    border-radius: 12px;
+    position: relative;
+    /* For absolute overlay */
+    border: none;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    cursor: pointer;
+    text-align: left;
+    display: block;
+}
+
+/* Base Content Layer (The "Skeleton") */
+.placeholderContent {
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    /* Stack vertically like the large widget */
+    align-items: flex-start;
+    justify-content: flex-end;
+    /* Content at bottom for large widget */
+    gap: 16px;
+    box-sizing: border-box;
+}
+
+/* Mock Album Cover */
+.albumCover {
+    width: 100%;
+    aspect-ratio: 1/1;
+    max-width: 232px;
+    /* Typical size in the large widget */
+    background: #282828;
+    border-radius: 8px;
+    margin-bottom: auto;
+    /* Push to top */
+    margin-top: 20px;
+    align-self: center;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    /* Crop image */
+}
+
+/* Mock Text Lines */
+.trackInfo {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* Tighter gap for text */
+}
+
+.trackTitle {
+    color: #fff;
+    font-size: 22px;
+    /* Spotify-like headline size */
+    font-weight: 700;
+    font-family: var(--font-inter);
+    /* Use clean sans-serif */
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.trackArtist {
+    color: #b3b3b3;
+    /* Spotify light grey */
+    font-size: 16px;
+    font-weight: 400;
+    font-family: var(--font-inter);
+    line-height: 1.5;
+}
+
+/* GLass Overlay - The Interaction Layer */
+.glassOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0);
+    /* Initially clear */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s ease;
+}
+
+.placeholder:hover .glassOverlay {
+    background: rgba(0, 0, 0, 0.4);
+    /* Darken slightly on hover */
+}
+
+/* Refined Play Button */
+.playButton {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #1DB954;
+    /* Spotify Green */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    opacity: 0.9;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Triangle Icon */
+.playButton::after {
+    content: '';
+    display: block;
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-left: 18px solid #000;
+    /* Black icon on green */
+    margin-left: 4px;
+    /* Optical centering */
+}
+
+.placeholder:hover .playButton {
+    transform: scale(1.1);
+    opacity: 1;
+    box-shadow: 0 12px 32px rgba(29, 185, 84, 0.4);
+}
+
+/* Responsive Handling (Tablet/Desktop) - Compact Mode? */
+/* Actually, the iframe is often 352px tall (Large). 
+   If strictly width 100%, the inner content just stretches. */
+@media (max-width: 480px) {
+    .albumCover {
+        max-width: 160px;
+    }
+}
+
+@media (max-width: 768px) {
+    .title {
+        font-size: 2rem;
+        margin-bottom: 40px;
+    }
+}

@@ -1,0 +1,131 @@
+.container {
+    background-color: var(--background);
+    padding: 10vh 5vw;
+    color: var(--foreground);
+    position: relative;
+}
+
+.headline {
+    font-size: 8vw;
+    font-family: var(--font-heading);
+    color: var(--accent-red);
+    text-align: center;
+    margin-bottom: 5rem;
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    max-width: 1200px;
+    margin: 0 auto;
+    border-top: 1px solid #333;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 2fr 2fr 1fr;
+    align-items: center;
+    padding: 2rem 0;
+    border-bottom: 1px solid #333;
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.row:hover {
+    background-color: #111;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.row:hover .city {
+    color: var(--accent-red);
+}
+
+.date {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    opacity: 0.6;
+    letter-spacing: 0.1em;
+}
+
+.city {
+    font-family: var(--font-heading);
+    font-size: 2.5rem;
+    font-weight: 700;
+    transition: color 0.3s ease;
+}
+
+.venue {
+    font-family: var(--font-body);
+    font-size: 1.2rem;
+    opacity: 0.8;
+}
+
+.action {
+    text-align: right;
+}
+
+.ticketBtn {
+    background: transparent;
+    border: 1px solid var(--accent-red);
+    color: var(--accent-red);
+    padding: 0.8rem 1.5rem;
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.ticketBtn:hover {
+    background: var(--accent-red);
+    color: var(--background);
+}
+
+.soldOut {
+    color: #555;
+    font-family: var(--font-body);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-decoration: line-through;
+}
+
+@media (max-width: 768px) {
+    .row {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "date action"
+            "city city"
+            "venue venue";
+        gap: 0.2rem;
+        padding: 1.5rem 0;
+    }
+
+    .date {
+        grid-area: date;
+        font-size: 0.9rem;
+    }
+
+    .action {
+        grid-area: action;
+    }
+
+    .city {
+        grid-area: city;
+        font-size: 1.6rem;
+        line-height: 1.2;
+    }
+
+    .venue {
+        grid-area: venue;
+        font-size: 1rem;
+    }
+
+    .ticketBtn {
+        padding: 0.6rem 1rem;
+        font-size: 0.8rem;
+    }
+}

@@ -1,0 +1,161 @@
+.section {
+    padding: 100px 0;
+    background-color: var(--background);
+    text-align: center;
+}
+
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.title {
+    font-family: var(--font-rounded);
+    font-size: 3rem;
+    color: var(--accent-red);
+    text-transform: uppercase;
+    margin-bottom: 100px;
+    /* Increased from 80px */
+    letter-spacing: 0.1em;
+    /* Intense Red Glow matching Hero Nav */
+    /* Intense Red Glow matching Hero Nav */
+    /* Intense Red Glow matching Hero Nav */
+    opacity: 0;
+    text-shadow: none;
+    /* animation: brokenLight 2s linear forwards; */
+}
+
+.title.visible {
+    animation: brokenLight 2s linear forwards;
+}
+
+.imageWrapper {
+    width: 100%;
+    position: relative;
+    /* Aspect ratio maintenance if needed, but simple img width 100% works */
+    border-radius: 4px;
+    /* Maintain square aspect ratio for the image */
+    aspect-ratio: 1 / 1;
+    /* Slight rounding? */
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.image {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+}
+
+.allDatesLink {
+    display: block;
+    width: 100%;
+    text-align: right;
+    margin-top: 20px;
+    font-family: var(--font-rounded);
+    color: var(--accent-red);
+    text-decoration: none;
+    font-size: 1.25rem;
+    letter-spacing: 0.05em;
+    transition: all 0.2s ease;
+}
+
+.allDatesLink:hover {
+    text-shadow: 0 0 10px var(--accent-red);
+    transform: translateX(5px);
+}
+
+
+
+@keyframes brokenLight {
+    0% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    5% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    10% {
+        opacity: 1;
+        text-shadow: 0 0 20px var(--accent-red), 0 0 40px var(--accent-red);
+    }
+
+    15% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    20% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    22% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    30% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    32% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    35% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    60% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    62% {
+        opacity: 0.1;
+        text-shadow: none;
+    }
+
+    65% {
+        opacity: 1;
+        text-shadow: 0 0 30px var(--accent-red), 0 0 50px var(--accent-red);
+    }
+
+    70% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+
+    100% {
+        opacity: 1;
+        text-shadow: 0 0 10px var(--accent-red), 0 0 20px var(--accent-red);
+    }
+}
+
+@media (max-width: 768px) {
+    .title {
+        font-size: 2rem;
+        margin-bottom: 60px;
+        /* Increased from 40px */
+    }
+
+    .allDatesLink {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .allDatesLink {
+        font-size: 1rem;
+    }
+}

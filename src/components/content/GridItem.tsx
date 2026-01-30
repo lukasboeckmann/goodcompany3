@@ -12,14 +12,6 @@ interface GridItemProps {
     height: number;
     children: React.ReactNode;
     className?: string; // Allow extra styling
-
-    // Interaction props
-    isZoomedOut: boolean;
-    onClickCapture?: (e: React.MouseEvent) => void;
-    onDoubleClick?: (e: React.MouseEvent) => void;
-
-    // Styles for the container
-    style?: React.CSSProperties;
 }
 
 export default function GridItem({
@@ -31,57 +23,48 @@ export default function GridItem({
     height,
     children,
     className = '',
-    isZoomedOut,
-    onClickCapture,
-    onDoubleClick,
-    style = {}
 }: GridItemProps) {
 
     // Transform logic for Infinite Wrapping
     const xPos = useTransform(x, (v) => {
-        if (width === 0) return 0;
         const totalWidth = width * 3;
         const baseOffset = col * width;
         const current = baseOffset + v;
+
+        // Modulo wrapping to keep in range [-width, 2*width)
+        // Formula: ((val % max) + max) % max  ->  [0, max)
+        // Then shift to desired range.
         const wrapped = ((current % totalWidth) + totalWidth) % totalWidth;
+
+        // Returns range [0, 3W). 
+        // We shift by -width to get [-W, 2W) so one neighbor is on left, one on right (if viewport is 0..W)
         return wrapped - width;
     });
 
     const yPos = useTransform(y, (v) => {
-        if (height === 0) return 0;
         const totalHeight = height * 3;
         const baseOffset = row * height;
         const current = baseOffset + v;
+
         const wrapped = ((current % totalHeight) + totalHeight) % totalHeight;
         return wrapped - height;
     });
 
     return (
         <motion.div
-            className={`absolute overflow-hidden ${className}`}
+            className={className}
             style={{
                 position: 'absolute',
-                width: width,
-                height: height,
                 top: 0,
                 left: 0,
+                width: width,
+                height: height,
                 x: xPos,
                 y: yPos,
-                willChange: 'transform',
-                pointerEvents: isZoomedOut ? 'auto' : 'none',
-                zIndex: 0,
-                ...style
+                willChange: 'transform', // Optimization hint
             }}
-            onClickCapture={onClickCapture}
-            onDoubleClick={onDoubleClick}
         >
-            {/* 
-        Full Surface Container 
-        Ensure children fill this space.
-      */}
-            <div className="w-full h-full relative">
-                {children}
-            </div>
+            {children}
         </motion.div>
     );
 }

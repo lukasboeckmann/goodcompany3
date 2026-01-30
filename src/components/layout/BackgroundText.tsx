@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { motion } from 'framer-motion';
 
@@ -8,7 +6,7 @@ const BackgroundText = React.memo(() => {
         <motion.div
             style={{
                 position: 'absolute',
-                top: '50%', left: '14%',
+                top: '50%', left: '14%', // Shifted to 14% as requested in goodcompany2
                 width: '100%', height: '100%',
                 zIndex: -1,
                 pointerEvents: 'none',
@@ -27,5 +25,4 @@ const BackgroundText = React.memo(() => {
     );
 });
 
-BackgroundText.displayName = 'BackgroundText';
 export default BackgroundText;
