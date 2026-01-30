@@ -11,15 +11,11 @@ interface GridItemProps {
     width: number;
     height: number;
     children: React.ReactNode;
-    className?: string; // Allow extra styling
-
-    // Interaction props
     isZoomedOut: boolean;
+    // Wir machen diese Props optional, damit es nicht crasht
     onClickCapture?: (e: React.MouseEvent) => void;
     onDoubleClick?: (e: React.MouseEvent) => void;
-
-    // Styles for the container
-    style?: React.CSSProperties;
+    className?: string; // Hinzugefügt für Flexibilität
 }
 
 export default function GridItem({
@@ -30,58 +26,55 @@ export default function GridItem({
     width,
     height,
     children,
-    className = '',
     isZoomedOut,
     onClickCapture,
     onDoubleClick,
-    style = {}
+    className
 }: GridItemProps) {
 
-    // Transform logic for Infinite Wrapping
-    const xPos = useTransform(x, (v) => {
-        if (width === 0) return 0;
-        const totalWidth = width * 3;
-        const baseOffset = col * width;
-        const current = baseOffset + v;
-        const wrapped = ((current % totalWidth) + totalWidth) % totalWidth;
-        return wrapped - width;
+    // KORRIGIERTE MATHEMATIK:
+    // Diese Formel ist robuster gegen "Zittern" an den Rändern.
+    // Wir nutzen width * 3 (Totalgröße) für den Modulo.
+
+    const xPos = useTransform(x, (latestX) => {
+        if (!width) return 0;
+        const totalW = width * 3;
+        // Berechnung: Startposition + Bewegung
+        const rawPos = (col * width) + latestX;
+        // Modulo, der auch negative Zahlen sauber "wrapped"
+        const wrappedPos = ((rawPos % totalW) + totalW) % totalW;
+        // Zentrieren: Wir schieben alles um 1 Breite zurück, damit Index 1 in der Mitte ist
+        return wrappedPos - width;
     });
 
-    const yPos = useTransform(y, (v) => {
-        if (height === 0) return 0;
-        const totalHeight = height * 3;
-        const baseOffset = row * height;
-        const current = baseOffset + v;
-        const wrapped = ((current % totalHeight) + totalHeight) % totalHeight;
-        return wrapped - height;
+    const yPos = useTransform(y, (latestY) => {
+        if (!height) return 0;
+        const totalH = height * 3;
+        const rawPos = (row * height) + latestY;
+        const wrappedPos = ((rawPos % totalH) + totalH) % totalH;
+        return wrappedPos - height;
     });
 
     return (
         <motion.div
-            className={`absolute overflow-hidden ${className}`}
+            className={className}
             style={{
                 position: 'absolute',
-                width: width,
-                height: height,
                 top: 0,
                 left: 0,
+                width: width,
+                height: height,
                 x: xPos,
                 y: yPos,
+                // WICHTIG: Hardware-Beschleunigung erzwingen gegen Grafik-Glitches
                 willChange: 'transform',
-                pointerEvents: isZoomedOut ? 'auto' : 'none',
+                pointerEvents: 'auto',
                 zIndex: 0,
-                ...style
             }}
             onClickCapture={onClickCapture}
             onDoubleClick={onDoubleClick}
         >
-            {/* 
-        Full Surface Container 
-        Ensure children fill this space.
-      */}
-            <div className="w-full h-full relative">
-                {children}
-            </div>
+            {children}
         </motion.div>
     );
 }

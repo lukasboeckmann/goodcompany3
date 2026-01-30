@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 :root {
   --background: #050505;
@@ -73,5 +71,26 @@ body {
 
   100% {
     transform: translateX(0);
+  }
+
+  /* Verhindert, dass Bilder oder Links "gezogen" werden (Geisterbilder) */
+  img,
+  a {
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    user-drag: none;
+    /* Verhindert Markieren */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  html,
+  body {
+    overscroll-behavior: none;
+    /* WICHTIG: Kein Gummiband-Effekt vom Browser */
+    overflow: hidden;
+    /* Sicherstellen, dass keine Scrollbars entstehen */
   }
 }
