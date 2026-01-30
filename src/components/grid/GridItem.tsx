@@ -10,7 +10,6 @@ interface GridItemProps {
     col: number;
     width: number;
     height: number;
-    // Neue Props für die unendliche "Tapete"
     totalGridCols: number;
     totalGridRows: number;
     children: React.ReactNode;
@@ -36,23 +35,37 @@ export default function GridItem({
     onDoubleClick
 }: GridItemProps) {
 
-    // LOGIK: Positionierung im unendlichen Raum (Tapete)
+    // LOGIK: 
+    // Wir berechnen die absolute Position.
+    // KORREKTUR: Wir entfernen "- (width / 2)", da HTML Elemente von oben-links starten.
+
     const xPos = useTransform(x, (latestX) => {
         if (!width) return 0;
         const totalW = width * totalGridCols;
-        const rawPos = (col * width) + latestX;
-        // Modulo für den Loop der gesamten Welt
-        const wrappedPos = ((rawPos % totalW) + totalW) % totalW;
-        // Zentrierung: Verschiebt das Grid so, dass Index 0 in der Mitte bleibt
-        return wrappedPos - (width * Math.floor(totalGridCols / 2));
+
+        // 1. Position berechnen
+        const currentX = (col * width) + latestX;
+
+        // 2. Offset für den Wrap (Hälfte der Weltgröße)
+        // Das sorgt dafür, dass der Wrap sauber an den Rändern passiert
+        const offset = totalW / 2;
+
+        // 3. Wrap-Mathematik
+        // ((Wert + Offset) % Max + Max) % Max - Offset
+        const wrappedX = ((currentX + offset) % totalW + totalW) % totalW - offset;
+
+        return wrappedX;
     });
 
     const yPos = useTransform(y, (latestY) => {
         if (!height) return 0;
         const totalH = height * totalGridRows;
-        const rawPos = (row * height) + latestY;
-        const wrappedPos = ((rawPos % totalH) + totalH) % totalH;
-        return wrappedPos - (height * Math.floor(totalGridRows / 2));
+
+        const currentY = (row * height) + latestY;
+        const offset = totalH / 2;
+        const wrappedY = ((currentY + offset) % totalH + totalH) % totalH - offset;
+
+        return wrappedY;
     });
 
     return (
@@ -67,8 +80,8 @@ export default function GridItem({
                 x: xPos,
                 y: yPos,
                 willChange: 'transform',
-                pointerEvents: 'auto', // Wichtig für Interaktionen
-                zIndex: 0,
+                pointerEvents: 'auto',
+                zIndex: 10,
             }}
             onClickCapture={onClickCapture}
             onDoubleClick={onDoubleClick}
