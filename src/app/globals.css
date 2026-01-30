@@ -6,11 +6,13 @@
   --accent-red: #E60000;
   --accent-gold: #D4AF37;
   --spacing-unit: 8px;
+  /* Deine Font-Variablen */
   --font-heading: var(--font-playfair), serif;
   --font-body: var(--font-geist-sans), sans-serif;
   --font-rounded: var(--font-geist-mono), monospace;
 }
 
+/* Global Reset & Settings */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -18,32 +20,38 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* FIX: "Kein Cursor" Logik für Desktop */
+/* Wir wenden das auf * (Alles) an, damit auch Buttons und Links den Cursor nicht zurückholen */
+@media (pointer: fine) {
+  * {
+    cursor: none !important;
+  }
+}
+
 html,
 body {
-  background: #000 !important;
-  color: #fff !important;
+  background: #080808;
+  color: #fff;
   overflow: hidden;
+  /* Verhindert Scrollen der Hauptseite */
   position: fixed;
   width: 100%;
   height: 100%;
   touch-action: none;
-  font-family: sans-serif;
+  /* Wichtig für Swipe-Gesten */
+  font-family: var(--font-body);
+  overscroll-behavior: none;
 }
 
-/* Der Film Grain Effekt */
-.filmGrain {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.1;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+/* FIX: "Normaler Cursor" für Touch-Geräte */
+/* Hier erlauben wir den Browser-Standard wieder, damit Taps funktionieren */
+@media (pointer: coarse) {
+  * {
+    cursor: auto !important;
+  }
 }
 
-/* High-Fashion Typo */
+/* Deine Custom Styles */
 .high-fashion-heading {
   font-weight: 900;
   text-transform: uppercase;
@@ -72,25 +80,76 @@ body {
   100% {
     transform: translateX(0);
   }
+}
 
-  /* Verhindert, dass Bilder oder Links "gezogen" werden (Geisterbilder) */
+@layer utilities {
+
+  /* Verhindert das Rausziehen von Bildern (Ghost Images) beim Swipen */
   img,
-  a {
+  video {
     -webkit-user-drag: none;
-    -khtml-user-drag: none;
-    -moz-user-drag: none;
-    -o-user-drag: none;
     user-drag: none;
-    /* Verhindert Markieren */
     user-select: none;
-    -webkit-user-select: none;
   }
 
-  html,
-  body {
-    overscroll-behavior: none;
-    /* WICHTIG: Kein Gummiband-Effekt vom Browser */
-    overflow: hidden;
-    /* Sicherstellen, dass keine Scrollbars entstehen */
+  /* Scrollbar verstecken (für Roster und Dates) */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Die Animation für das Noise Overlay */
+  @keyframes noise {
+    0% {
+      transform: translate(0, 0);
+    }
+
+    10% {
+      transform: translate(-5%, -5%);
+    }
+
+    20% {
+      transform: translate(-10%, 5%);
+    }
+
+    30% {
+      transform: translate(5%, -10%);
+    }
+
+    40% {
+      transform: translate(-5%, 15%);
+    }
+
+    50% {
+      transform: translate(-10%, 5%);
+    }
+
+    60% {
+      transform: translate(15%, 0);
+    }
+
+    70% {
+      transform: translate(0, 10%);
+    }
+
+    80% {
+      transform: translate(-15%, 0);
+    }
+
+    90% {
+      transform: translate(10%, 5%);
+    }
+
+    100% {
+      transform: translate(5%, 0);
+    }
+  }
+
+  .animate-noise {
+    animation: noise 0.2s infinite;
   }
 }

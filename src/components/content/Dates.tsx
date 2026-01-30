@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Dates() {
     return (
-        <div className="w-full px-[10%] pointer-events-auto">
+        <div className="w-full max-w-[1200px] px-[10%] pointer-events-auto">
             <div className="border-b border-[#333] pb-[10px] mb-[10px] grid grid-cols-3 font-mono text-[10px] text-[#808080]">
                 <span className="text-left">DATE</span>
                 <span className="text-center">CITY</span>
