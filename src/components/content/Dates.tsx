@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 
 export default function Dates() {
     return (
-        <div className="w-full max-w-[1200px] px-[10%] pointer-events-auto">
+        <div className="w-full max-w-[1200px] px-5 md:px-[10%] pointer-events-auto">
             <div
                 className="border-b border-[#333] grid grid-cols-3 font-mono text-[10px] text-[#808080]"
                 style={{ paddingBottom: '4px', marginBottom: '8px' }}

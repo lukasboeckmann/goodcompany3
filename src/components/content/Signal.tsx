@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Signal() {
     return (
-        <div className="pointer-events-auto w-full max-w-[400px] flex flex-col gap-[30px] font-mono text-[#ececec]">
+        <div className="pointer-events-auto w-full max-w-[400px] px-5 md:px-0 flex flex-col gap-[30px] font-mono text-[#ececec]">
             <div className="text-[10px] opacity-50 tracking-[0.2em]">
                 SIGNAL STATUS: ACTIVE
             </div>
