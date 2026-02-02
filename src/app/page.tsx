@@ -175,7 +175,7 @@ export default function Home() {
       }}
     >
       {/* VIBE LAYERS */}
-      {!isMobile && <Noise />}
+      <Noise />
       <CustomCursor />
 
       {/* ⚡ INFINITE PARALLAX BACKGROUND (3x3 Grid) ⚡ */}
