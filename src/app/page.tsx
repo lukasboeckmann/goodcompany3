@@ -173,7 +173,7 @@ export default function Home() {
       }}
     >
       {/* VIBE LAYERS */}
-      <Noise />
+      {!isMobile && <Noise />}
       <CustomCursor />
 
       {/* ⚡ INFINITE PARALLAX BACKGROUND (3x3 Grid) ⚡ */}
@@ -282,7 +282,7 @@ export default function Home() {
 
                     // JELLY EFFECT & GPU FIX
                     style={{
-                      skewX: skewX,
+                      skewX: isMobile ? 0 : skewX,
                       // Anti-Flicker:
                       backfaceVisibility: 'hidden',
                       WebkitBackfaceVisibility: 'hidden',
