@@ -39,16 +39,18 @@ export default function Imprint() {
                     filter: 'grayscale(1) invert(1) contrast(1.2)'
                 }}
             >
-                <iframe
-                    style={{ borderRadius: '12px' }}
-                    src="https://open.spotify.com/embed/artist/6eCZz1kzSVLeQy2YRTEtO7?utm_source=generator&theme=0"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    allowFullScreen
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                />
+                {audioEnabled && (
+                    <iframe
+                        style={{ borderRadius: '12px' }}
+                        src="https://open.spotify.com/embed/artist/6eCZz1kzSVLeQy2YRTEtO7?utm_source=generator&theme=0"
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        allowFullScreen
+                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                        loading="lazy"
+                    />
+                )}
             </div>
 
             {!audioEnabled && (
