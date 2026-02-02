@@ -3,11 +3,10 @@
 import React from 'react';
 import { VAULT_FILES } from '@/data/content';
 
-export const VaultCell = () => {
+export const VaultCell = ({ activeVideo, setActiveVideo }: { activeVideo: string | null, setActiveVideo: (v: string | null) => void }) => {
     const [vaultInput, setVaultInput] = React.useState('');
     const [status, setStatus] = React.useState<'LOCKED' | 'DECRYPTING' | 'UNLOCKED'>('LOCKED');
     const [glitch, setGlitch] = React.useState(false);
-    const [activeVideo, setActiveVideo] = React.useState<string | null>(null);
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     const handleValidate = () => {
@@ -27,76 +26,86 @@ export const VaultCell = () => {
     // --- UNLOCKED: DIRECTORY VIEW ---
     if (status === 'UNLOCKED') {
         return (
-            <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0a0a', overflow: 'hidden', pointerEvents: 'auto' }}>
+            <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0a0a0a', overflow: 'hidden', pointerEvents: 'auto' }}>
 
-                {/* HEADER */}
-                <div style={{ padding: '20px 20px 10px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #333', flexShrink: 0 }}>
-                    <span style={{ fontFamily: 'monospace', color: '#ececec', fontSize: '12px', letterSpacing: '0.1em', opacity: 0.8 }}>VAULT_SESSION_LOG // STATUS: ENCRYPTED</span>
-                </div>
-
-                {/* SCROLLABLE FILE LIST */}
+                {/* THE "WINDOW" */}
                 <div style={{
-                    flex: 1, overflowY: 'auto', padding: '10px 0',
-                    WebkitOverflowScrolling: 'touch', // Smooth scroll iOS
-                    scrollbarWidth: 'none', // Firefox
-                    msOverflowStyle: 'none' // IE
+                    width: '95%', maxWidth: '1000px', height: '90%',
+                    display: 'flex', flexDirection: 'column',
+                    backgroundColor: '#0c0c0c',
+                    position: 'relative', zIndex: 10,
+                    boxShadow: '0 0 100px rgba(0,0,0,0.8)'
                 }}>
-                    <style jsx>{`div::-webkit-scrollbar { display: none; }`}</style>
 
-                    {VAULT_FILES.map((file, i) => (
-                        <div
-                            key={i}
-                            className="vault-item"
-                            style={{
-                                padding: '12px 20px',
-                                borderBottom: '1px solid #1a1a1a',
-                                display: 'grid',
-                                gridTemplateColumns: '40px 1fr 50px',
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                                transition: 'background 0.2s ease',
-                            }}
-                            onClick={(e) => { e.stopPropagation(); file.type === 'VIDEO' ? setActiveVideo(file.url) : null; }}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                            {/* KOL 1: TYPE */}
-                            <span style={{ fontFamily: 'monospace', color: '#666', fontSize: '10px', textTransform: 'uppercase' }}>
-                                {file.type === 'VIDEO' ? 'MOV' : file.type === 'AUDIO' ? 'WAV' : file.type === 'TEXT' ? 'TXT' : 'PDF'}
-                            </span>
+                    {/* HEADER */}
+                    <div style={{ padding: '20px 20px 10px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #333', flexShrink: 0 }}>
+                        <span style={{ fontFamily: 'monospace', color: '#ececec', fontSize: '12px', letterSpacing: '0.1em', opacity: 0.8 }}>VAULT_SESSION_LOG // STATUS: ENCRYPTED</span>
+                    </div>
 
-                            {/* KOL 2: NAME */}
-                            <span style={{ fontFamily: 'monospace', color: '#ececec', fontSize: '13px', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {file.name}
-                            </span>
+                    {/* SCROLLABLE FILE LIST */}
+                    <div style={{
+                        flex: 1, overflowY: 'auto', padding: '10px 0',
+                        WebkitOverflowScrolling: 'touch', // Smooth scroll iOS
+                        scrollbarWidth: 'none', // Firefox
+                        msOverflowStyle: 'none' // IE
+                    }}>
+                        <style jsx>{`div::-webkit-scrollbar { display: none; }`}</style>
 
-                            {/* KOL 3: SIZE */}
-                            <span style={{ fontFamily: 'monospace', color: '#444', fontSize: '10px', textAlign: 'right' }}>
-                                {file.size}
-                            </span>
+                        {VAULT_FILES.map((file, i) => (
+                            <div
+                                key={i}
+                                className="vault-item"
+                                style={{
+                                    padding: '12px 20px',
+                                    borderBottom: '1px solid #1a1a1a',
+                                    display: 'grid',
+                                    gridTemplateColumns: '40px 1fr 50px',
+                                    alignItems: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.2s ease',
+                                }}
+                                onClick={(e) => { e.stopPropagation(); file.type === 'VIDEO' ? setActiveVideo(file.url) : null; }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                                {/* KOL 1: TYPE */}
+                                <span style={{ fontFamily: 'monospace', color: '#666', fontSize: '10px', textTransform: 'uppercase' }}>
+                                    {file.type === 'VIDEO' ? 'MOV' : file.type === 'AUDIO' ? 'WAV' : file.type === 'TEXT' ? 'TXT' : 'PDF'}
+                                </span>
+
+                                {/* KOL 2: NAME */}
+                                <span style={{ fontFamily: 'monospace', color: '#ececec', fontSize: '13px', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {file.name}
+                                </span>
+
+                                {/* KOL 3: SIZE */}
+                                <span style={{ fontFamily: 'monospace', color: '#444', fontSize: '10px', textAlign: 'right' }}>
+                                    {file.size}
+                                </span>
+                            </div>
+                        ))}
+
+                        <div style={{ padding: '40px 20px', fontFamily: 'monospace', color: '#333', fontSize: '10px', textAlign: 'center' }}>
+                // END_OF_LOG
                         </div>
-                    ))}
+                    </div>
 
-                    <div style={{ padding: '40px 20px', fontFamily: 'monospace', color: '#333', fontSize: '10px', textAlign: 'center' }}>
-            // END_OF_LOG
+                    {/* FOOTER: LOCK SYSTEM */}
+                    <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', justifyContent: 'center', flexShrink: 0, background: '#0a0a0a', position: 'relative', zIndex: 30 }}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setStatus('LOCKED'); setVaultInput(''); setActiveVideo(null); }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            style={{ background: 'transparent', border: '1px solid #333', color: '#666', padding: '10px 20px', fontFamily: 'monospace', fontSize: '11px', cursor: 'pointer', letterSpacing: '0.1em', transition: 'all 0.2s ease' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ececec'; e.currentTarget.style.color = '#ececec'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+                        >
+                            [ LOCK_SYSTEM ]
+                        </button>
                     </div>
                 </div>
 
-                {/* FOOTER: LOCK SYSTEM */}
-                <div style={{ padding: '20px', borderTop: '1px solid #333', display: 'flex', justifyContent: 'center', flexShrink: 0, background: '#0a0a0a', position: 'relative', zIndex: 30 }}>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setStatus('LOCKED'); setVaultInput(''); setActiveVideo(null); }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        style={{ background: 'transparent', border: '1px solid #333', color: '#666', padding: '10px 20px', fontFamily: 'monospace', fontSize: '11px', cursor: 'pointer', letterSpacing: '0.1em', transition: 'all 0.2s ease' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ececec'; e.currentTarget.style.color = '#ececec'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-                    >
-                        [ LOCK_SYSTEM ]
-                    </button>
-                </div>
-
-                {/* PREVIEW OVERLAY */}
+                {/* PREVIEW OVERLAY - Fullscreen over the "window" */}
                 {activeVideo && (
                     <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>
                         <button
@@ -135,7 +144,7 @@ export const VaultCell = () => {
             </div>
 
             {/* TERMINAL UI */}
-            <div style={{ width: '300px', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative', zIndex: 10, pointerEvents: 'auto' }}>
+            <div style={{ width: '220px', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '10px', position: 'relative', zIndex: 10, pointerEvents: 'auto' }}>
                 <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#888', letterSpacing: '0.1em' }}>
                     {status === 'DECRYPTING' ? 'DECRYPTING_DATA_STREAM...' : 'ACCESS_RESTRICTED // ENTER_VAULT_KEY'}
                 </span>
@@ -156,8 +165,8 @@ export const VaultCell = () => {
                         style={{
                             width: '100%',
                             background: 'transparent', border: 'none', borderBottom: '2px solid #ececec',
-                            color: glitch ? '#ff3333' : '#ececec', fontFamily: 'monospace', fontSize: '24px', outline: 'none',
-                            padding: '10px 0', letterSpacing: '0.2em',
+                            color: glitch ? '#ff3333' : '#ececec', fontFamily: 'monospace', fontSize: '18px', outline: 'none',
+                            padding: '8px 0', letterSpacing: '0.2em',
                             animation: glitch ? 'shake 0.3s ease-in-out' : 'none',
                             opacity: status === 'DECRYPTING' ? 0.5 : 1
                         }}

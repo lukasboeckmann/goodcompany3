@@ -13,7 +13,8 @@ export default function Signal() {
                     <input
                         type="email"
                         placeholder="[ YOUR MAIL ]"
-                        className="bg-transparent border-none border-b border-[#ececec] text-[#ececec] py-[5px] outline-none font-mono text-[14px]"
+                        className="bg-transparent border-b border-[#ececec] text-[#ececec] py-[5px] outline-none font-mono text-[14px]"
+                        style={{ borderBottom: '1px solid #ececec' }}
                     />
                 </div>
                 <div className="flex flex-col gap-[10px]">
@@ -21,11 +22,13 @@ export default function Signal() {
                     <input
                         type="text"
                         placeholder="[ YOUR MESSAGE ]"
-                        className="bg-transparent border-none border-b border-[#ececec] text-[#ececec] py-[5px] outline-none font-mono text-[14px] placeholder:text-[#888]"
+                        className="bg-transparent border-b border-[#ececec] text-[#ececec] py-[5px] outline-none font-mono text-[14px] placeholder:text-[#888]"
+                        style={{ borderBottom: '1px solid #ececec' }}
                     />
                 </div>
                 <button
-                    className="mt-[20px] bg-transparent border border-[#ececec] p-[15px] text-[#ececec] cursor-pointer font-mono text-[12px] tracking-[0.2em] uppercase transition-all duration-200 hover:bg-[#ececec] hover:text-[#0c0c0c]"
+                    className="mt-[20px] bg-transparent border border-[#ececec] text-[#ececec] cursor-pointer font-mono text-[12px] tracking-[0.2em] uppercase transition-all duration-200 hover:bg-[#ececec] hover:text-[#0c0c0c]"
+                    style={{ padding: '12px 15px' }}
                 >
                     [ SEND SIGNAL ]
                 </button>

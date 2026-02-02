@@ -6,14 +6,8 @@ export default function CustomCursor() {
     const cursorX = useMotionValue(-100);
     const cursorY = useMotionValue(-100);
 
-    // FIX: SCHNELLER & DIREKTER
-    // Stiffness: Je höher, desto schneller zieht er zur Maus (wie ein starkes Gummiband).
-    // Damping: Bremst das Nachschwingen.
-    // Mass: Je kleiner, desto weniger "träge" fühlt er sich an.
-    const springConfig = { damping: 50, stiffness: 1200, mass: 0.5 };
-
-    const x = useSpring(cursorX, springConfig);
-    const y = useSpring(cursorY, springConfig);
+    // DIRECT TRACKING: 1:1 movement, NO lag
+    // We use MotionValues directly to update the DOM without React renders.
 
     useEffect(() => {
         const moveCursor = (e: MouseEvent) => {
@@ -38,7 +32,7 @@ export default function CustomCursor() {
         <motion.div
             // pointer-events-none ist EXTREM wichtig, sonst klickt man auf den Cursor statt auf den Button drunter!
             className="fixed top-0 left-0 w-3 h-3 rounded-full bg-white pointer-events-none z-[10000] mix-blend-difference"
-            style={{ x, y }}
+            style={{ x: cursorX, y: cursorY }}
         />
     );
 }

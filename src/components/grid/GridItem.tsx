@@ -17,6 +17,7 @@ interface GridItemProps {
     onClickCapture?: (e: React.MouseEvent) => void;
     onDoubleClick?: (e: React.MouseEvent) => void;
     className?: string;
+    zIndex?: number;
 }
 
 export default function GridItem({
@@ -32,7 +33,8 @@ export default function GridItem({
     className,
     isZoomedOut,
     onClickCapture,
-    onDoubleClick
+    onDoubleClick,
+    zIndex = 10
 }: GridItemProps) {
 
     // LOGIK: 
@@ -81,7 +83,7 @@ export default function GridItem({
                 y: yPos,
                 willChange: 'transform',
                 pointerEvents: 'auto',
-                zIndex: 10,
+                zIndex: zIndex,
             }}
             onClickCapture={onClickCapture}
             onDoubleClick={onDoubleClick}

@@ -37,7 +37,7 @@ export const GalleryCell = ({ x, y, size, isZoomedOut }: GalleryCellProps) => {
     const scale = isZoomedOut ? 0.25 : 1;
 
     return (
-        <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
 
             {/* VERTICAL TYPOGRAPHY */}
             <div style={{
@@ -66,7 +66,7 @@ export const GalleryCell = ({ x, y, size, isZoomedOut }: GalleryCellProps) => {
             {/* IMAGE 2 (Overlap Top Right) */}
             <motion.div
                 style={{
-                    position: 'absolute', top: '15%', right: '5%', width: '38%', height: '40%',
+                    position: 'absolute', top: '15%', right: '2%', width: '38%', height: '40%',
                     zIndex: 2,
                     // Moves faster (closer layer)
                     x: useTransform(smoothX, (v: any) => v * -0.12 * scale),
@@ -82,7 +82,7 @@ export const GalleryCell = ({ x, y, size, isZoomedOut }: GalleryCellProps) => {
             {/* IMAGE 3 (Overlap Bottom Right - Zoomed Detail) */}
             <motion.div
                 style={{
-                    position: 'absolute', bottom: '15%', right: '12%', width: '30%', height: '35%',
+                    position: 'absolute', bottom: '15%', right: '8%', width: '30%', height: '35%',
                     zIndex: 3,
                     // Moves fastest (closest layer)
                     x: useTransform(smoothX, (v: any) => v * -0.2 * scale),

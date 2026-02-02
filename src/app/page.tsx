@@ -33,6 +33,7 @@ export default function Home() {
   // Interaction States
   const [activeArtist, setActiveArtist] = useState<any | null>(null);
   const [activeStudioInstance, setActiveStudioInstance] = useState<string | null>(null);
+  const [activeVaultVideo, setActiveVaultVideo] = useState<string | null>(null);
 
   // --- INIT LOGIC & INTRO TIMER ---
   useEffect(() => {
@@ -222,6 +223,7 @@ export default function Home() {
             const contentRow = ((row % 3) + 3) % 3;
             const contentCol = ((col % 3) + 3) % 3;
             const instanceId = `${row}-${col}`;
+            const isGallery = contentRow === 1 && contentCol === 0;
 
             return (
               <GridItem
@@ -235,6 +237,7 @@ export default function Home() {
                 totalGridCols={TOTAL_COLS}
                 totalGridRows={TOTAL_ROWS}
                 isZoomedOut={isOverview}
+                zIndex={isGallery ? 20 : 10}
 
                 onClickCapture={(e) => {
                   if (isIntroSequence || isDragging.current) {
@@ -272,7 +275,7 @@ export default function Home() {
 
                   {/* ANIMIERTER CONTENT MIT JELLY & ZOOM */}
                   <motion.div
-                    className={`w-full h-full relative overflow-hidden flex items-center justify-center bg-[#0c0c0c]/95 border border-white/5 ${isOverview ? 'cursor-pointer' : ''}`}
+                    className={`w-full h-full relative ${isGallery ? 'overflow-visible' : 'overflow-hidden'} flex items-center justify-center bg-[#0c0c0c]/95 border border-white/5 ${isOverview ? 'cursor-pointer' : ''}`}
 
                     // JELLY EFFECT & GPU FIX
                     style={{
@@ -292,7 +295,7 @@ export default function Home() {
                       if (contentRow === 0) {
                         if (contentCol === 0) return <Headline />;
                         if (contentCol === 1) return <Roster setActiveArtist={setActiveArtist} />;
-                        if (contentCol === 2) return <VaultCell />;
+                        if (contentCol === 2) return <VaultCell activeVideo={activeVaultVideo} setActiveVideo={setActiveVaultVideo} />;
                       }
                       if (contentRow === 1) {
                         if (contentCol === 0) return <GalleryCell x={x} y={y} size={{ w: width, h: height }} isZoomedOut={isOverview} />;
@@ -315,7 +318,7 @@ export default function Home() {
       </motion.div>
 
       {/* OVERVIEW BUTTON */}
-      {!isIntroSequence && (
+      {!isIntroSequence && !activeArtist && !activeVaultVideo && (
         <div className="fixed top-10 right-10 z-[10000] animate-in fade-in duration-1000" style={{ pointerEvents: 'auto' }}>
           <button
             className="text-[12px] font-mono font-bold tracking-[0.2em] text-neutral-500 hover:text-[#ececec] transition-colors cursor-pointer uppercase select-none"
@@ -351,12 +354,12 @@ export default function Home() {
           </button>
 
           <div className="w-full max-w-[1000px] p-6 md:p-12 flex flex-col items-center">
-            <h2 className="text-[12vw] md:text-[8vw] font-black uppercase leading-[0.85] tracking-tighter mt-12 mb-12 text-center text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-600">
+            <h2 className="text-[12vw] md:text-[8vw] font-black uppercase leading-[0.85] tracking-tighter mt-12 mb-12 text-center text-white">
               {activeArtist.name}
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full">
-              <div className="w-full aspect-[3/4] bg-neutral-900 relative grayscale hover:grayscale-0 transition-all duration-700">
+            <div className="flex flex-col items-center gap-12 w-full max-w-2xl">
+              <div className="w-full aspect-[3/4] bg-neutral-900 relative transition-all duration-700">
                 {activeArtist.image ? (
                   <img
                     src={activeArtist.image}
@@ -370,20 +373,32 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex flex-col justify-end font-mono">
-                <div className="text-[10px] text-neutral-500 tracking-[0.2em] mb-4 uppercase border-b border-white/10 pb-2">
+              <div className="flex flex-col w-full font-mono text-left">
+                <div
+                  className="text-[10px] text-neutral-500 tracking-[0.2em] uppercase border-b border-white/10 pb-2"
+                  style={{ marginBottom: '2rem' }}
+                >
                   / Biography
                 </div>
-                <p className="text-sm md:text-base leading-relaxed text-neutral-300 mb-12">
+                <p
+                  className="text-sm md:text-base leading-relaxed text-neutral-300"
+                  style={{ marginBottom: '2rem' }}
+                >
                   {activeArtist.bio || "No biography available yet."}
                 </p>
 
                 {activeArtist.links && activeArtist.links.length > 0 && (
                   <>
-                    <div className="text-[10px] text-neutral-500 tracking-[0.2em] mb-4 uppercase border-b border-white/10 pb-2">
+                    <div
+                      className="text-[10px] text-neutral-500 tracking-[0.2em] uppercase border-b border-white/10 pb-2"
+                      style={{ marginBottom: '2rem' }}
+                    >
                       / Connect
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div
+                      className="flex flex-row gap-6 flex-wrap justify-center"
+                      style={{ paddingBottom: '3rem' }}
+                    >
                       {activeArtist.links.map((link: any, index: number) => (
                         <a
                           key={index}

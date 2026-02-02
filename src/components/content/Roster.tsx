@@ -83,11 +83,11 @@ export default function Roster({ setActiveArtist }: { setActiveArtist: (artist: 
                                 >
                                     {artist.name}
 
-                                    {hoveredArtistId === artist.id && (
-                                        <span className="ml-4 text-[10px] opacity-50 transition-all duration-300">
-                                            ←
-                                        </span>
-                                    )}
+                                    <span
+                                        className={`ml-4 text-[10px] transition-all duration-300 ${hoveredArtistId === artist.id ? 'opacity-50' : 'opacity-0'}`}
+                                    >
+                                        ←
+                                    </span>
                                 </button>
                             </li>
                         ))}
