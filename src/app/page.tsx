@@ -54,7 +54,10 @@ export default function Home() {
   }, []);
 
   // --- GRID CONFIG ---
-  const RANGE = isMobile ? 2 : 4;
+  // FIX: Range 2 (5 items) breaks the 3x3 content pattern (5 % 3 != 0).
+  // We need a grid size divisible by 3.
+  // Mobile: 1 (Length 3), Desktop: 4 (Length 9).
+  const RANGE = isMobile ? 1 : 4;
   const renderIndices = useMemo(() => {
     return Array.from({ length: RANGE * 2 + 1 }, (_, i) => i - RANGE);
   }, [RANGE]);
