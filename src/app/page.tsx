@@ -54,13 +54,15 @@ export default function Home() {
   }, []);
 
   // --- GRID CONFIG ---
-  // FIX: Range 2 (5 items) breaks the 3x3 content pattern (5 % 3 != 0).
-  // We need a grid size divisible by 3.
-  // Mobile: 1 (Length 3), Desktop: 4 (Length 9).
-  const RANGE = isMobile ? 1 : 4;
+  // FIX: User requested 5x5, but 5 is not divisible by 3 (Content Cycle).
+  // We use 6x6 (Indices -2 to 3) for Mobile, which matches the content cycle (6 % 3 == 0) and provides a larger buffer than 3x3.
   const renderIndices = useMemo(() => {
-    return Array.from({ length: RANGE * 2 + 1 }, (_, i) => i - RANGE);
-  }, [RANGE]);
+    if (isMobile) {
+      return [-2, -1, 0, 1, 2, 3]; // Length 6
+    }
+    const range = 4; // Desktop: Range 4 -> 9 items (-4 to 4)
+    return Array.from({ length: range * 2 + 1 }, (_, i) => i - range);
+  }, [isMobile]);
 
   const TOTAL_COLS = renderIndices.length;
   const TOTAL_ROWS = renderIndices.length;
