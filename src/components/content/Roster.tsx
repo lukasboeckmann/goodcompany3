@@ -76,7 +76,7 @@ export default function Roster({ setActiveArtist }: { setActiveArtist: (artist: 
                                     onMouseEnter={() => setHoveredArtistId(artist.id)}
                                     onMouseLeave={() => setHoveredArtistId(null)}
                                     onClick={(e) => { e.stopPropagation(); setActiveArtist(artist); }}
-                                    className="relative bg-none border-none text-[#ececec] text-[3vw] font-normal font-mono cursor-pointer uppercase transition-opacity duration-400 tracking-[-0.03em] flex items-center text-left"
+                                    className="relative bg-none border-none text-[#ececec] text-[5vw] font-normal font-mono cursor-pointer uppercase transition-opacity duration-400 tracking-[-0.03em] flex items-center text-left"
                                     style={{
                                         opacity: hoveredArtistId ? (hoveredArtistId === artist.id ? 1 : 0.2) : 0.7
                                     }}
