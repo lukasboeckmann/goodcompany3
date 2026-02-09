@@ -4,7 +4,7 @@ const ARTISTS = [
     {
         id: 'veli',
         name: 'Veli',
-        bio: 'The Visionary.',
+        bio: '',
         description: '',
         image: '/images/gallery_02.jpg',
         links: [
@@ -15,7 +15,7 @@ const ARTISTS = [
     {
         id: '*maliiik',
         name: '*maliiik',
-        bio: 'The Architect.',
+        bio: '',
         description: '',
         image: '/images/maliiik_profile.jpg',
         links: [
@@ -26,7 +26,7 @@ const ARTISTS = [
     {
         id: 'cuffa',
         name: 'cuffa',
-        bio: 'The Sonic Force.',
+        bio: '',
         description: '',
         image: '/images/gallery_02.jpg', // Placeholder
         links: [
@@ -37,7 +37,7 @@ const ARTISTS = [
     {
         id: 'jamal',
         name: 'jamal',
-        bio: 'The Visual Poet.',
+        bio: '',
         description: '',
         image: 'https://berghain.berlin/media/images/Company_freestyle_Cover_Clean.width-1600.jpg', // Placeholder
         links: [
